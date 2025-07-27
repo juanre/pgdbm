@@ -1,0 +1,13 @@
+# Application dependencies
+# pgdbm  # Use local version with PYTHONPATH
+asyncpg>=0.28.0  # pgdbm dependency
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+
+# Development dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+httpx>=0.24.0  # For testing FastAPI

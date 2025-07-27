@@ -1,0 +1,193 @@
+# pgdbm
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/pypi/pyversions/pgdbm.svg)](https://pypi.org/project/pgdbm/)
+[![PyPI](https://img.shields.io/pypi/v/pgdbm.svg)](https://pypi.org/project/pgdbm/)
+
+A PostgreSQL library for Python that provides high-level async database operations with built-in migration management, connection pooling, and testing utilities.
+
+## Why pgdbm?
+
+Building database-driven Python applications requires solving the same problems repeatedly:
+
+- **Connection pooling** with proper resource management
+- **Schema migrations** that are version-controlled and automated
+- **Testing utilities** that provide isolated test databases
+- **Module isolation** when multiple services share a database
+- **Monitoring** for slow queries and connection issues
+
+pgdbm provides a unified solution for these common patterns.
+
+## Key Features
+
+- **🚀 High Performance** - Built on asyncpg, the fastest PostgreSQL driver for Python
+- **📦 Migration System** - Version-controlled schema migrations with automatic ordering
+- **🧪 Testing Support** - Fixtures and utilities for database testing
+- **🔧 Module Isolation** - Prevent table conflicts when modules share databases
+- **📊 Monitoring** - Track slow queries and connection pool metrics
+- **🔒 Type Safe** - Full type hints and Pydantic integration
+
+## Installation
+
+```bash
+# Install using uv (recommended)
+uv add pgdbm
+
+# Or using pip
+pip install pgdbm
+```
+
+## Quick Start
+
+### 1. Create a migration file
+
+```sql
+-- migrations/001_initial.sql
+CREATE TABLE IF NOT EXISTS {{tables.users}} (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### 2. Use pgdbm
+
+```python
+from pgdbm import AsyncDatabaseManager, DatabaseConfig, AsyncMigrationManager
+
+# Configure and connect
+config = DatabaseConfig(
+    host="localhost",
+    database="myapp",
+    user="postgres",
+    password="secret"
+)
+
+db = AsyncDatabaseManager(config)
+await db.connect()
+
+# Apply migrations
+migrations = AsyncMigrationManager(db, migrations_path="./migrations")
+await migrations.apply_pending()
+
+# Use your database
+user_id = await db.execute_and_return_id(
+    "INSERT INTO {{tables.users}} (email) VALUES ($1)",
+    "user@example.com"
+)
+
+# Clean up
+await db.disconnect()
+```
+
+## Core Patterns
+
+### 1. Migration Management
+
+pgdbm includes a built-in migration system:
+
+```python
+# Apply all pending migrations
+migrations = AsyncMigrationManager(db, migrations_path="./migrations")
+result = await migrations.apply_pending()
+
+# Check what was applied
+for migration in result['applied']:
+    print(f"Applied {migration['filename']} in {migration['execution_time_ms']}ms")
+```
+
+Migrations are automatically ordered by version number extracted from filenames.
+
+### 2. Module Isolation
+
+When multiple modules share a database, use schemas to prevent table conflicts:
+
+```python
+# Each module gets its own schema
+user_db = AsyncDatabaseManager(
+    config=DatabaseConfig(database="app", schema="user_module")
+)
+blog_db = AsyncDatabaseManager(
+    config=DatabaseConfig(database="app", schema="blog_module")
+)
+
+# Both can have a "users" table without conflict:
+# - user_module.users
+# - blog_module.users
+```
+
+The `{{tables.tablename}}` syntax in queries automatically expands to the correct schema-qualified name.
+
+### 3. Connection Pool Sharing
+
+For applications with multiple services sharing a database:
+
+```python
+# Create shared pool
+shared_pool = await AsyncDatabaseManager.create_shared_pool(config)
+
+# Each service gets its own schema but shares connections
+user_db = AsyncDatabaseManager(pool=shared_pool, schema="users")
+billing_db = AsyncDatabaseManager(pool=shared_pool, schema="billing")
+```
+
+### 4. Testing Support
+
+Built-in fixtures for database tests:
+
+```python
+# conftest.py
+from pgdbm.fixtures.conftest import *
+
+# test_users.py
+async def test_create_user(test_db):
+    # Automatic test database with cleanup
+    await test_db.execute("""
+        CREATE TABLE users (id SERIAL PRIMARY KEY, email TEXT)
+    """)
+
+    user_id = await test_db.execute_and_return_id(
+        "INSERT INTO users (email) VALUES ($1)",
+        "test@example.com"
+    )
+    assert user_id == 1
+```
+
+### 5. Monitoring
+
+Track database performance:
+
+```python
+from pgdbm import MonitoredAsyncDatabaseManager
+
+db = MonitoredAsyncDatabaseManager(
+    config=config,
+    slow_query_threshold_ms=100  # Log queries over 100ms
+)
+
+# Get metrics
+metrics = await db.get_query_metrics()
+slow_queries = await db.get_slow_queries(limit=10)
+```
+
+## Real-World Examples
+
+The `examples/` directory contains complete applications:
+
+- **todo-app/** - REST API with migrations, testing, and error handling
+- **saas-app/** - Multi-tenant SaaS application
+- **microservices/** - Multiple services sharing a connection pool
+
+## Documentation
+
+- [Quickstart Guide](docs/quickstart.md) - Get started in 5 minutes
+- [Patterns Guide](docs/patterns.md) - Choose the right deployment pattern
+- [Migration Guide](docs/migrations.md) - Schema versioning and {{tables.}} syntax
+- [Schema Isolation Guide](docs/schema-isolation.md) - Multi-service database sharing
+- [API Reference](docs/api-reference.md) - Complete API documentation
+- [Integration Guide](docs/integration-guide.md) - Framework integration
+- [Testing Guide](docs/testing.md) - Testing best practices
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.

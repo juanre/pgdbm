@@ -1,0 +1,121 @@
+"""Notification service for sending emails, SMS, and push notifications."""
+import os
+import time
+from datetime import datetime
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from shared.database import SharedDatabaseManager, register_service
+from shared.events import event_bus, event_handler, EventTypes
+
+
+# Service configuration
+SERVICE_NAME = os.getenv("SERVICE_NAME", "notification-service")
+SERVICE_PORT = int(os.getenv("SERVICE_PORT", "8004"))
+SERVICE_URL = f"http://localhost:{SERVICE_PORT}"
+
+# Track startup time
+startup_time = time.time()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager."""
+    # Initialize shared database
+    await SharedDatabaseManager.get_instance()
+    
+    # Initialize event bus
+    await event_bus.initialize()
+    
+    # Register event handlers
+    from .handlers import (
+        handle_user_created, handle_order_created,
+        handle_order_confirmed, handle_order_shipped,
+        handle_low_stock_alert
+    )
+    
+    # Register service
+    await register_service(SERVICE_NAME, SERVICE_URL)
+    
+    yield
+    
+    # Cleanup
+    await event_bus.close()
+
+
+# Create FastAPI app
+app = FastAPI(
+    title="Notification Service",
+    description="Email, SMS, and push notification service",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/")
+async def root():
+    """Root endpoint."""
+    return {
+        "service": SERVICE_NAME,
+        "version": "1.0.0",
+        "description": "Handles email, SMS, and push notifications",
+        "event_handlers": [
+            "user.created",
+            "order.created",
+            "order.confirmed",
+            "order.shipped",
+            "inventory.low_stock_alert"
+        ]
+    }
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    uptime = time.time() - startup_time
+    
+    return {
+        "service_name": SERVICE_NAME,
+        "status": "healthy",
+        "version": "1.0.0",
+        "uptime_seconds": round(uptime, 2),
+        "database": "connected",
+        "timestamp": datetime.utcnow()
+    }
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global exception handler."""
+    print(f"Unhandled exception in {SERVICE_NAME}: {exc}")
+    
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "service": SERVICE_NAME
+        }
+    )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    
+    uvicorn.run(
+        "services.notification.main:app",
+        host="0.0.0.0",
+        port=SERVICE_PORT,
+        reload=True
+    )
