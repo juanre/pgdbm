@@ -4,19 +4,13 @@
 [![Python](https://img.shields.io/pypi/pyversions/pgdbm.svg)](https://pypi.org/project/pgdbm/)
 [![PyPI](https://img.shields.io/pypi/v/pgdbm.svg)](https://pypi.org/project/pgdbm/)
 
-A PostgreSQL library for Python that provides high-level async database operations with built-in migration management, connection pooling, and testing utilities.
-
-## Why pgdbm?
-
-Building database-driven Python applications requires solving the same problems repeatedly:
+A PostgreSQL library for Python that provides high-level async database operations with built-in migration management, connection pooling, and testing utilities. It offers:
 
 - **Connection pooling** with proper resource management
 - **Schema migrations** that are version-controlled and automated
 - **Testing utilities** that provide isolated test databases
 - **Module isolation** when multiple services share a database
 - **Monitoring** for slow queries and connection issues
-
-pgdbm provides a unified solution for these common patterns.
 
 ## Key Features
 
@@ -103,7 +97,7 @@ Migrations are automatically ordered by version number extracted from filenames.
 When multiple modules share a database, use schemas to prevent table conflicts:
 
 ```python
-# Each module gets its own schema
+# Each module can get its own schema
 user_db = AsyncDatabaseManager(
     config=DatabaseConfig(database="app", schema="user_module")
 )
@@ -170,9 +164,9 @@ metrics = await db.get_query_metrics()
 slow_queries = await db.get_slow_queries(limit=10)
 ```
 
-## Real-World Examples
+## Examples
 
-The `examples/` directory contains complete applications:
+The `examples/` directory contains applications:
 
 - **todo-app/** - REST API with migrations, testing, and error handling
 - **saas-app/** - Multi-tenant SaaS application
@@ -180,12 +174,10 @@ The `examples/` directory contains complete applications:
 
 ## Documentation
 
-- [Quickstart Guide](docs/quickstart.md) - Get started in 5 minutes
-- [Patterns Guide](docs/patterns.md) - Choose the right deployment pattern
+- [Quickstart Guide](docs/quickstart.md) - Get started
+- [Patterns Guide](docs/patterns.md) - Deployment patterns, schema isolation, and framework integration
 - [Migration Guide](docs/migrations.md) - Schema versioning and {{tables.}} syntax
-- [Schema Isolation Guide](docs/schema-isolation.md) - Multi-service database sharing
 - [API Reference](docs/api-reference.md) - Complete API documentation
-- [Integration Guide](docs/integration-guide.md) - Framework integration
 - [Testing Guide](docs/testing.md) - Testing best practices
 
 ## License

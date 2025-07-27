@@ -281,6 +281,42 @@ async def monitor_pool_health(shared_pool):
     }
 ```
 
+### Cross-Schema Limitations
+
+PostgreSQL foreign keys cannot cross schemas. Handle references in application code:
+
+```python
+# Can't use foreign keys between schemas
+# user_id INTEGER REFERENCES users.users(id)  -- Won't work!
+
+# Instead, validate in application:
+async def create_order(self, user_id: UUID):
+    # Validate user exists in users schema
+    user = await self.user_service.get_user(user_id)
+    if not user:
+        raise ValueError("User not found")
+
+    return await self.db.fetch_one("""
+        INSERT INTO {{tables.orders}} (user_id, total)
+        VALUES ($1, $2)
+        RETURNING *
+    """, user_id, total)
+```
+
+### Shared Tables Pattern
+
+Some tables might be truly shared across services (in public schema):
+
+```sql
+-- migrations/001_shared.sql
+-- Don't use {{tables.}} for truly shared tables
+CREATE TABLE IF NOT EXISTS service_registry (
+    service_name VARCHAR(100) PRIMARY KEY,
+    service_url VARCHAR(255) NOT NULL,
+    healthy BOOLEAN DEFAULT true
+);
+```
+
 ### Pros and Cons
 
 ✅ **Pros:**
@@ -288,12 +324,14 @@ async def monitor_pool_health(shared_pool):
 - Centralized configuration
 - Easy service coordination
 - Good for transitional architectures
+- Minimal schema overhead (PostgreSQL handles efficiently)
 
 ❌ **Cons:**
 - Single point of failure
 - Services affect each other
 - Complex pool sizing
 - Harder to scale individual services
+- No foreign keys across schemas
 
 ## Decision Matrix
 
@@ -413,6 +451,46 @@ class EcommercePlatform:
             connection_string="postgresql://localhost/analytics"
         )
 ```
+
+## Framework Integration Example
+
+Here's how to integrate pgdbm with FastAPI using the shared pool pattern:
+
+```python
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from pgdbm import AsyncDatabaseManager, DatabaseConfig
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Create shared pool
+    config = DatabaseConfig(
+        connection_string="postgresql://localhost/app",
+        min_connections=50,
+        max_connections=100
+    )
+    shared_pool = await AsyncDatabaseManager.create_shared_pool(config)
+
+    # Create schema-isolated managers
+    app.state.user_db = AsyncDatabaseManager(pool=shared_pool, schema="users")
+    app.state.order_db = AsyncDatabaseManager(pool=shared_pool, schema="orders")
+
+    yield
+
+    # Shutdown: Close shared pool
+    await shared_pool.close()
+
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/users/{user_id}")
+async def get_user(user_id: int):
+    return await app.state.user_db.fetch_one(
+        "SELECT * FROM {{tables.users}} WHERE id = $1",
+        user_id
+    )
+```
+
+This pattern ensures proper resource management and schema isolation for web applications.
 
 ## Summary
 

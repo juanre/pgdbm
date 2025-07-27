@@ -12,8 +12,11 @@ This document provides a complete reference for all public APIs in pgdbm.
   - [Migration](#migration)
 - [Monitoring](#monitoring)
   - [MonitoredAsyncDatabaseManager](#monitoredasyncdatabasemanager)
+  - [DatabaseDebugger](#databasedebugger)
 - [Testing Utilities](#testing-utilities)
-  - [TestDatabaseManager](#testdatabasemanager)
+  - [AsyncTestDatabase](#asynctestdatabase)
+  - [DatabaseTestCase](#databasetestcase)
+  - [DatabaseTestConfig](#databasetestconfig)
 - [Error Classes](#error-classes)
 - [Type Definitions](#type-definitions)
 
@@ -38,26 +41,26 @@ config = DatabaseConfig(
 
 #### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `connection_string` | `Optional[str]` | `None` | Full PostgreSQL connection URL. If provided, overrides individual parameters |
-| `host` | `str` | `"localhost"` | Database host |
-| `port` | `int` | `5432` | Database port |
-| `database` | `str` | `"postgres"` | Database name |
-| `user` | `str` | `"postgres"` | Database user |
-| `password` | `Optional[str]` | `None` | Database password (required unless using DB_PASSWORD env var) |
-| `schema` | `Optional[str]` | `None` | Default schema name for multi-tenant applications |
-| `min_connections` | `int` | `10` | Minimum number of connections in pool |
-| `max_connections` | `int` | `20` | Maximum number of connections in pool |
-| `max_queries` | `int` | `50000` | Maximum queries per connection before recycling |
-| `max_inactive_connection_lifetime` | `float` | `300.0` | Seconds before closing idle connections |
-| `command_timeout` | `float` | `60.0` | Default command timeout in seconds |
-| `server_settings` | `Optional[dict[str, str]]` | `None` | PostgreSQL server settings |
-| `init_commands` | `Optional[list[str]]` | `None` | SQL commands to run on each new connection |
-| `retry_attempts` | `int` | `3` | Number of connection retry attempts |
-| `retry_delay` | `float` | `1.0` | Initial delay between retries in seconds |
-| `retry_backoff` | `float` | `2.0` | Backoff multiplier for exponential retry |
-| `retry_max_delay` | `float` | `30.0` | Maximum delay between retries |
+| Parameter                          | Type                       | Default       | Description                                                                  |
+|------------------------------------|----------------------------|---------------|------------------------------------------------------------------------------|
+| `connection_string`                | `Optional[str]`            | `None`        | Full PostgreSQL connection URL. If provided, overrides individual parameters |
+| `host`                             | `str`                      | `"localhost"` | Database host                                                                |
+| `port`                             | `int`                      | `5432`        | Database port                                                                |
+| `database`                         | `str`                      | `"postgres"`  | Database name                                                                |
+| `user`                             | `str`                      | `"postgres"`  | Database user                                                                |
+| `password`                         | `Optional[str]`            | `None`        | Database password (required unless using DB_PASSWORD env var)                |
+| `schema`                           | `Optional[str]`            | `None`        | Default schema name for multi-tenant applications                            |
+| `min_connections`                  | `int`                      | `10`          | Minimum number of connections in pool                                        |
+| `max_connections`                  | `int`                      | `20`          | Maximum number of connections in pool                                        |
+| `max_queries`                      | `int`                      | `50000`       | Maximum queries per connection before recycling                              |
+| `max_inactive_connection_lifetime` | `float`                    | `300.0`       | Seconds before closing idle connections                                      |
+| `command_timeout`                  | `float`                    | `60.0`        | Default command timeout in seconds                                           |
+| `server_settings`                  | `Optional[dict[str, str]]` | `None`        | PostgreSQL server settings                                                   |
+| `init_commands`                    | `Optional[list[str]]`      | `None`        | SQL commands to run on each new connection                                   |
+| `retry_attempts`                   | `int`                      | `3`           | Number of connection retry attempts                                          |
+| `retry_delay`                      | `float`                    | `1.0`         | Initial delay between retries in seconds                                     |
+| `retry_backoff`                    | `float`                    | `2.0`         | Backoff multiplier for exponential retry                                     |
+| `retry_max_delay`                  | `float`                    | `30.0`        | Maximum delay between retries                                                |
 
 #### Methods
 
@@ -95,11 +98,11 @@ AsyncDatabaseManager(
 )
 ```
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `config` | `Optional[DatabaseConfig]` | Database configuration (required if pool not provided) |
-| `pool` | `Optional[asyncpg.Pool]` | External connection pool (mutually exclusive with config) |
-| `schema` | `Optional[str]` | Schema override (only valid with external pool) |
+| Parameter | Type                       | Description                                               |
+|-----------|----------------------------|-----------------------------------------------------------|
+| `config`  | `Optional[DatabaseConfig]` | Database configuration (required if pool not provided)    |
+| `pool`    | `Optional[asyncpg.Pool]`   | External connection pool (mutually exclusive with config) |
+| `schema`  | `Optional[str]`            | Schema override (only valid with external pool)           |
 
 #### Connection Management
 
@@ -329,12 +332,12 @@ migrations = AsyncMigrationManager(
 
 #### Constructor Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `db_manager` | `AsyncDatabaseManager` | Required | Database manager instance |
-| `migrations_path` | `str` | `"./migrations"` | Path to migration files |
-| `migrations_table` | `str` | `"schema_migrations"` | Table name for tracking migrations |
-| `module_name` | `Optional[str]` | Schema or `"default"` | Module name for multi-module support |
+| Parameter          | Type                   | Default               | Description                          |
+|--------------------|------------------------|-----------------------|--------------------------------------|
+| `db_manager`       | `AsyncDatabaseManager` | Required              | Database manager instance            |
+| `migrations_path`  | `str`                  | `"./migrations"`      | Path to migration files              |
+| `migrations_table` | `str`                  | `"schema_migrations"` | Table name for tracking migrations   |
+| `module_name`      | `Optional[str]`        | Schema or `"default"` | Module name for multi-module support |
 
 #### Methods
 
@@ -436,11 +439,11 @@ monitored_db = MonitoredAsyncDatabaseManager(
 
 #### Additional Constructor Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `slow_query_threshold` | `float` | `1.0` | Threshold in seconds for slow query logging |
-| `track_query_metrics` | `bool` | `True` | Enable query metrics collection |
-| `query_history_size` | `int` | `1000` | Number of queries to keep in history |
+| Parameter              | Type    | Default | Description                                 |
+|------------------------|---------|---------|---------------------------------------------|
+| `slow_query_threshold` | `float` | `1.0`   | Threshold in seconds for slow query logging |
+| `track_query_metrics`  | `bool`  | `True`  | Enable query metrics collection             |
+| `query_history_size`   | `int`   | `1000`  | Number of queries to keep in history        |
 
 #### Additional Methods
 
@@ -472,48 +475,213 @@ Analyze query patterns to identify optimization opportunities.
 ##### async get_connection_metrics() -> dict[str, Any]
 Get detailed connection pool metrics.
 
-## Testing Utilities
+### DatabaseDebugger
 
-### TestDatabaseManager
-
-Manages temporary test databases with automatic cleanup.
+Utilities for debugging database performance and issues.
 
 ```python
-from pgdbm.testing import TestDatabaseManager
+from pgdbm import DatabaseDebugger
 
-test_manager = TestDatabaseManager(
-    config=config,
-    test_db_prefix="test_"
+debugger = DatabaseDebugger(db_manager)
+```
+
+#### Methods
+
+##### async get_connection_info() -> dict[str, Any]
+Get current connection statistics.
+
+```python
+info = await debugger.get_connection_info()
+print(f"Active connections: {info['active_connections']}")
+print(f"Idle connections: {info['idle_connections']}")
+```
+
+##### async find_blocking_queries() -> list[dict[str, Any]]
+Find queries that are blocking other queries.
+
+```python
+blocking = await debugger.find_blocking_queries()
+for query in blocking:
+    print(f"PID {query['blocking_pid']} is blocking PID {query['blocked_pid']}")
+    print(f"Blocking query: {query['blocking_query']}")
+```
+
+##### async find_long_running_queries(threshold_seconds: int = 300) -> list[dict[str, Any]]
+Find queries running longer than threshold.
+
+```python
+long_queries = await debugger.find_long_running_queries(threshold_seconds=60)
+for query in long_queries:
+    print(f"Query running for {query['duration']}: {query['query']}")
+```
+
+##### async analyze_table_sizes() -> list[dict[str, Any]]
+Get table sizes and statistics.
+
+```python
+tables = await debugger.analyze_table_sizes()
+for table in tables:
+    print(f"{table['tablename']}: {table['size']} ({table['row_count']} rows)")
+```
+
+##### async check_index_usage(table_name: str) -> list[dict[str, Any]]
+Analyze index usage for a table.
+
+```python
+indexes = await debugger.check_index_usage("users")
+for idx in indexes:
+    print(f"{idx['indexname']}: {idx['idx_scan']} scans, {idx['idx_tup_read']} tuples read")
+```
+
+##### async get_database_health() -> dict[str, Any]
+Get overall database health metrics.
+
+```python
+health = await debugger.get_database_health()
+if health['blocking_queries'] > 0:
+    print(f"Warning: {health['blocking_queries']} blocking queries found")
+if health['long_running_queries'] > 0:
+    print(f"Warning: {health['long_running_queries']} long-running queries found")
+```
+
+## Testing Utilities
+
+### AsyncTestDatabase
+
+Test database management for async tests with debugging support.
+
+```python
+from pgdbm import AsyncTestDatabase, DatabaseTestConfig
+
+config = DatabaseTestConfig(
+    host="localhost",
+    port=5432,
+    user="postgres",
+    password="postgres",
+    verbose=True,
+    log_sql=True
 )
+
+test_db = AsyncTestDatabase(config)
 ```
 
 #### Constructor Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `config` | `DatabaseConfig` | Required | Base database configuration |
-| `test_db_prefix` | `str` | `"test_"` | Prefix for test database names |
-| `drop_on_cleanup` | `bool` | `True` | Drop database on cleanup |
+| Parameter | Type                           | Default               | Description                                  |
+|-----------|--------------------------------|-----------------------|----------------------------------------------|
+| `config`  | `Optional[DatabaseTestConfig]` | `from_env()` if None  | Test database configuration                  |
 
 #### Methods
 
-##### async create_test_database(suffix: Optional[str] = None) -> AsyncDatabaseManager
-Create a new test database and return a manager for it.
+##### async create_test_database(suffix: Optional[str] = None) -> None
+Create a new test database with optional suffix.
 
 ```python
-test_db = await test_manager.create_test_database(suffix="user_tests")
-try:
-    await test_db.execute("CREATE TABLE users (...)")
-    # Run tests
-finally:
-    await test_manager.cleanup_test_database(test_db)
+await test_db.create_test_database("integration")
+# Creates database like: test_myapp_integration_abc123
 ```
 
-##### async cleanup_test_database(db_manager: AsyncDatabaseManager) -> None
-Drop a test database and close its connections.
+##### async drop_test_database() -> None
+Drop the test database if it exists.
 
-##### async cleanup_all_test_databases() -> None
-Clean up all test databases matching the prefix pattern.
+##### async get_test_db_config(schema: Optional[str] = None, **kwargs) -> DatabaseConfig
+Get configuration for connecting to the test database.
+
+##### async get_test_db_manager(schema: Optional[str] = None, **kwargs) -> AsyncDatabaseManager
+Get a database manager connected to the test database.
+
+```python
+async with test_db.get_test_db_manager() as db_manager:
+    await db_manager.execute("CREATE TABLE users (...)")
+    # Manager automatically connects and disconnects
+```
+
+##### async snapshot_table(db_manager: AsyncDatabaseManager, table_name: str, order_by: Optional[str] = None) -> list[dict[str, Any]]
+Capture current state of a table for comparison.
+
+```python
+before = await test_db.snapshot_table(db_manager, "users")
+# Perform operations
+after = await test_db.snapshot_table(db_manager, "users")
+assert before != after
+```
+
+### DatabaseTestCase
+
+Utility class providing test helper methods.
+
+```python
+from pgdbm import DatabaseTestCase
+
+test_utils = DatabaseTestCase(db_manager)
+```
+
+#### Methods
+
+##### async create_test_user(email: str, **kwargs) -> dict[str, Any]
+Create a test user with sensible defaults.
+
+```python
+user = await test_utils.create_test_user(
+    "alice@example.com",
+    name="Alice Smith",
+    is_active=True
+)
+```
+
+##### async count_rows(table_name: str, where: Optional[str] = None) -> int
+Count rows in a table with optional WHERE clause.
+
+```python
+active_users = await test_utils.count_rows("users", "is_active = true")
+```
+
+##### async table_exists(table_name: str) -> bool
+Check if a table exists.
+
+##### async truncate_table(table_name: str, cascade: bool = False) -> None
+Truncate a table.
+
+### DatabaseTestConfig
+
+Configuration for test databases.
+
+```python
+from pgdbm import DatabaseTestConfig
+
+config = DatabaseTestConfig(
+    host="localhost",
+    port=5432,
+    user="postgres",
+    password="postgres",
+    test_prefix="test_",
+    verbose=True,
+    log_sql=False
+)
+```
+
+#### Parameters
+
+| Parameter     | Type    | Default      | Description                      |
+|---------------|---------|--------------|----------------------------------|
+| `host`        | `str`   | `localhost`  | Database host                    |
+| `port`        | `int`   | `5432`       | Database port                    |
+| `user`        | `str`   | `postgres`   | Database user                    |
+| `password`    | `str`   | `postgres`   | Database password                |
+| `test_prefix` | `str`   | `test_`      | Prefix for test database names   |
+| `verbose`     | `bool`  | `False`      | Enable verbose logging           |
+| `log_sql`     | `bool`  | `False`      | Log SQL queries                  |
+
+#### Class Methods
+
+##### from_env() -> DatabaseTestConfig
+Create configuration from environment variables:
+- `TEST_DB_HOST`
+- `TEST_DB_PORT`
+- `TEST_DB_USER`
+- `TEST_DB_PASSWORD`
+- `TEST_DB_VERBOSE`
+- `TEST_DB_LOG_SQL`
 
 ## Error Classes
 
@@ -613,6 +781,22 @@ class DatabaseTestError(AsyncDBError):
         self.test_db_name = test_db_name
 ```
 
+### Transaction Errors
+
+```python
+class TransactionError(AsyncDBError):
+    """Raised for transaction-related errors."""
+    pass
+```
+
+### Monitoring Errors
+
+```python
+class MonitoringError(AsyncDBError):
+    """Raised for monitoring-related errors."""
+    pass
+```
+
 ## Type Definitions
 
 pgdbm is fully typed. Key type aliases:
@@ -633,18 +817,40 @@ Connection = Union[asyncpg.Connection, asyncpg.pool.PoolConnectionProxy]
 
 pgdbm supports special placeholders for schema-aware queries:
 
-- `{{schema}}` - Replaced with the current schema name
+- `{{schema}}` - Replaced with the quoted schema name (or "public" if no schema)
 - `{{tables.tablename}}` - Replaced with schema-qualified table name
 
-Example:
+Examples:
 ```python
 # With schema="myapp"
 await db.execute("CREATE TABLE {{tables.users}} (...)")
 # Executes: CREATE TABLE "myapp".users (...)
 
+await db.execute("CREATE TYPE {{schema}}.status_enum AS ENUM ('active', 'inactive')")
+# Executes: CREATE TYPE "myapp".status_enum AS ENUM ('active', 'inactive')
+
 await db.execute("SELECT * FROM {{tables.users}} WHERE active = true")
 # Executes: SELECT * FROM "myapp".users WHERE active = true
+
+# Without schema (schema=None)
+await db.execute("CREATE TABLE {{tables.users}} (...)")
+# Executes: CREATE TABLE users (...)
+
+await db.execute("CREATE TYPE {{schema}}.status_enum AS ENUM ('active', 'inactive')")
+# Executes: CREATE TYPE public.status_enum AS ENUM ('active', 'inactive')
 ```
+
+Use `{{schema}}` for PostgreSQL objects that need explicit schema:
+- Functions and procedures
+- Types (ENUM, composite types)
+- Views
+- Extensions
+
+Use `{{tables.tablename}}` for table operations:
+- CREATE/ALTER/DROP TABLE
+- Foreign key references
+- Indexes
+- All DML queries (SELECT, INSERT, UPDATE, DELETE)
 
 ## Environment Variables
 
@@ -653,10 +859,45 @@ pgdbm supports these environment variables:
 - `DB_PASSWORD` - Database password (used if not provided in config)
 - `DB_DEBUG` - Set to "1", "true", or "yes" to enable debug logging
 - `MIGRATION_DEBUG` - Set to "1", "true", or "yes" to enable migration debug logging
+- `TEST_DB_HOST` - Test database host (default: localhost)
+- `TEST_DB_PORT` - Test database port (default: 5432)
+- `TEST_DB_USER` - Test database user (default: postgres)
+- `TEST_DB_PASSWORD` - Test database password (default: postgres)
+- `TEST_DB_VERBOSE` - Enable verbose test output
+- `TEST_DB_LOG_SQL` - Log SQL queries in tests
 
 ## Thread Safety
 
 pgdbm is designed for async/await usage and is not thread-safe. Use separate instances per thread or stick to asyncio for concurrent operations.
+
+## Testing Best Practices
+
+### Using Test Fixtures
+
+Import pgdbm's ready-to-use pytest fixtures:
+
+```python
+# In your conftest.py
+from pgdbm.fixtures.conftest import (
+    test_db,
+    test_db_with_schema,
+    test_db_factory,
+    test_db_with_tables,
+    test_db_with_data,
+    db_test_utils,
+    test_db_isolated
+)
+
+# Or simply
+from pgdbm.fixtures.conftest import *
+```
+
+### Test Isolation
+
+1. **Separate Databases**: Each test gets a fresh database
+2. **Schema Isolation**: Use `test_db_with_schema` for multi-tenant tests
+3. **Transaction Rollback**: Use `test_db_isolated` to rollback after each test
+4. **Factory Pattern**: Use `test_db_factory` for multiple databases in one test
 
 ## Connection Pooling Best Practices
 
@@ -675,5 +916,3 @@ pgdbm is designed for async/await usage and is not thread-safe. Use separate ins
 5. **Schema Placeholders**: Parsed once per query, minimal overhead
 
 ---
-
-For more examples and patterns, see the [documentation](./index.md).

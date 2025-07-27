@@ -15,16 +15,26 @@ The migration system provides:
 
 ### Directory Structure
 
+Each module typically has its own migrations directory:
+
 ```
-migrations/
-├── 001_initial_schema.sql
-├── 002_add_users_table.sql
-├── 003_add_indexes.sql
-└── module_specific/
-    ├── auth/
-    │   └── 001_auth_tables.sql
-    └── billing/
-        └── 001_billing_tables.sql
+# Main application
+app/
+├── migrations/
+│   ├── 001_initial_schema.sql
+│   ├── 002_add_users_table.sql
+│   └── 003_add_indexes.sql
+
+# Auth module
+auth_module/
+├── migrations/
+│   ├── 001_auth_tables.sql
+│   └── 002_auth_indexes.sql
+
+# Billing library
+billing_lib/
+├── migrations/
+│   └── 001_billing_tables.sql
 ```
 
 ### Basic Usage
@@ -72,25 +82,25 @@ pgdbm automatically extracts version numbers from migration filenames to ensure 
 -- migrations/001_initial_schema.sql
 -- Description: Create initial schema and tables
 
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS {{tables.users}} (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS sessions (
+CREATE TABLE IF NOT EXISTS {{tables.sessions}} (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES {{tables.users}}(id) ON DELETE CASCADE,
     expires_at TIMESTAMP NOT NULL
 );
 
-CREATE INDEX idx_sessions_user_id ON sessions(user_id);
-CREATE INDEX idx_sessions_expires ON sessions(expires_at);
+CREATE INDEX idx_sessions_user_id ON {{tables.sessions}}(user_id);
+CREATE INDEX idx_sessions_expires ON {{tables.sessions}}(expires_at);
 ```
 
 ## Template Syntax for Schema Isolation
 
-pgdbm provides a powerful template syntax that enables your migrations and queries to work seamlessly in different deployment contexts. This is essential for building reusable libraries and services.
+pgdbm provides a template syntax that enables your migrations and queries to work in different deployment contexts.
 
 ### The {{tables.}} Syntax
 
@@ -153,7 +163,7 @@ GROUP BY u.id;
 
 1. Migration files keep the `{{tables.}}` syntax as-is
 2. When a query runs, pgdbm replaces templates based on the current schema context
-3. This allows the same migration to work in different schemas
+3. This allows the same migration files to work in different schemas
 
 ### Schema Context Behavior
 
@@ -174,111 +184,96 @@ db = AsyncDatabaseManager(pool=pool, schema="myapp")
 # {{tables.users}} → myapp.users
 ```
 
-### Legacy {{schema}} Syntax
+### Direct {{schema}} Syntax
 
-The older `{{schema}}` placeholder is also supported but less flexible:
+The `{{schema}}` placeholder is used for PostgreSQL objects that require explicit schema qualification:
 
 ```sql
--- Old style (avoid in new code)
-CREATE TABLE IF NOT EXISTS {{schema}}.organizations (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL
-);
+-- Creating functions in the schema
+CREATE OR REPLACE FUNCTION {{schema}}.update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
--- Preferred style
-CREATE TABLE IF NOT EXISTS {{tables.organizations}} (
+-- Creating types in the schema
+CREATE TYPE {{schema}}.order_status AS ENUM ('pending', 'confirmed', 'shipped');
+
+-- Referencing schema-qualified types
+CREATE TABLE IF NOT EXISTS {{tables.orders}} (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL
+    status {{schema}}.order_status NOT NULL DEFAULT 'pending'
 );
 ```
 
-## Module-Specific Migrations and Tracking
+Use `{{schema}}` for:
+- Function definitions
+- Type (ENUM, composite) definitions
+- Stored procedures
+- Views that need schema qualification
 
-### How Migration Tracking Works
+Use `{{tables.tablename}}` for:
+- Table references in CREATE TABLE, ALTER TABLE
+- Foreign key references
+- Index creation
+- Queries (SELECT, INSERT, UPDATE, DELETE)
 
-pgdbm tracks migrations in a `schema_migrations` table that follows your schema configuration:
+## Migration Tracking
 
-- **Without schema isolation**: Migrations are tracked in `public.schema_migrations`
-- **With schema isolation**: Migrations are tracked in `{your_schema}.schema_migrations`
-
-This design ensures complete schema isolation - each service owns its entire schema including migration history.
+pgdbm tracks migrations in a `schema_migrations` table:
 
 ```sql
--- This table is created automatically in the appropriate schema
 CREATE TABLE IF NOT EXISTS schema_migrations (
     id SERIAL PRIMARY KEY,
-    module_name VARCHAR(255) NOT NULL,
-    version VARCHAR(255) NOT NULL,
     filename VARCHAR(255) NOT NULL,
     checksum VARCHAR(64) NOT NULL,
+    module_name VARCHAR(100),
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    applied_by VARCHAR(100) DEFAULT CURRENT_USER,
     execution_time_ms INTEGER,
-    UNIQUE(module_name, version)
+    UNIQUE(filename, module_name)
 );
 ```
 
-Key points:
-- **module_name**: Identifies which module owns the migration
-- **version**: Extracted from filename (e.g., "001" from "001_initial.sql")
-- **checksum**: SHA-256 hash to detect if migration file changed
-- **Unique constraint**: Prevents applying same migration twice for a module
+### The module_name Parameter
 
-### Benefits of Schema-Local Migration Tables
-
-When using schema isolation, having migration tables in each schema provides:
-
-1. **Complete Isolation**: Each service/schema is self-contained
-2. **Independent Deployment**: Deploy or remove services without affecting others
-3. **Simpler Permissions**: Services only need access to their own schema
-4. **Clean Backups**: Schema dumps include complete migration history
-5. **No Module Name Conflicts**: Services can use simple module names
-
-### Module Isolation Pattern
-
-When building a reusable library (like memory-service), use module_name to isolate your migrations:
+The `module_name` parameter enables multiple applications or libraries to share the same database:
 
 ```python
-class MyLibrary:
-    def __init__(self, db_manager: Optional[AsyncDatabaseManager] = None):
-        self.db = db_manager
-        self._external_db = db_manager is not None
+# Default: uses schema name or "default"
+migrations = AsyncMigrationManager(db)
 
-    async def initialize(self):
-        # ALWAYS run your own migrations with your module name
-        migrations = AsyncMigrationManager(
-            self.db,
-            migrations_path="./my_library/migrations",
-            module_name="my_library"  # This isolates your migrations!
-        )
-        await migrations.apply_pending()
+# Explicit module name for isolation
+migrations = AsyncMigrationManager(
+    db,
+    migrations_path="./my_lib/migrations",
+    module_name="my_library"
+)
 ```
 
-This ensures:
-- Your migrations are tracked separately from the host application
-- Multiple libraries can coexist without conflicts
-- Each library manages its own schema evolution
+The **UNIQUE(filename, module_name)** constraint means different modules can have identically named migration files without conflicts. Each module tracks its own migration history independently.
 
-### Example: Multiple Modules in One Database
+### Example: Multiple Modules
 
 ```python
-# auth module migrations
+# Auth module specifies its own migrations directory
 auth_migrations = AsyncMigrationManager(
     db,
-    migrations_path="./auth/migrations",
+    migrations_path="./auth_module/migrations",
     module_name="auth"
 )
-await auth_migrations.apply_pending()
 
-# billing module migrations
+# Billing library has its own migrations
 billing_migrations = AsyncMigrationManager(
     db,
-    migrations_path="./billing/migrations",
+    migrations_path="./billing_lib/migrations",
     module_name="billing"
 )
-await billing_migrations.apply_pending()
 
-# Both can have a "001_initial.sql" without conflict!
-# Tracked as: ("auth", "001") and ("billing", "001")
+# Both can have "001_initial.sql" without conflict!
+# Each looks only in its own migrations_path directory
 ```
 
 ## Migration Operations
@@ -322,7 +317,7 @@ for migration in pending:
 ```python
 # Generate migration file
 content = """
-CREATE TABLE IF NOT EXISTS products (
+CREATE TABLE IF NOT EXISTS {{tables.products}} (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     price DECIMAL(10, 2) NOT NULL
@@ -380,13 +375,13 @@ Keep migrations focused:
 ```sql
 -- Good: Single responsibility
 -- 004_add_user_status.sql
-ALTER TABLE users ADD COLUMN status VARCHAR(20) DEFAULT 'active';
+ALTER TABLE {{tables.users}} ADD COLUMN status VARCHAR(20) DEFAULT 'active';
 
 -- Bad: Multiple unrelated changes
 -- 004_various_changes.sql
-ALTER TABLE users ADD COLUMN status VARCHAR(20);
-CREATE TABLE products (...);
-ALTER TABLE orders ADD COLUMN discount DECIMAL;
+ALTER TABLE {{tables.users}} ADD COLUMN status VARCHAR(20);
+CREATE TABLE {{tables.products}} (...);
+ALTER TABLE {{tables.orders}} ADD COLUMN discount DECIMAL;
 ```
 
 ### 2. Idempotent Migrations
@@ -395,12 +390,12 @@ Make migrations safe to run multiple times:
 
 ```sql
 -- Good: Idempotent
-CREATE TABLE IF NOT EXISTS users (...);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE TABLE IF NOT EXISTS {{tables.users}} (...);
+CREATE INDEX IF NOT EXISTS idx_users_email ON {{tables.users}}(email);
 
 -- Bad: Will fail if run twice
-CREATE TABLE users (...);
-CREATE INDEX idx_users_email ON users(email);
+CREATE TABLE {{tables.users}} (...);
+CREATE INDEX idx_users_email ON {{tables.users}}(email);
 ```
 
 ### 3. Backward Compatible Changes
@@ -409,13 +404,13 @@ Avoid breaking existing code:
 
 ```sql
 -- Good: Add nullable column
-ALTER TABLE users ADD COLUMN phone VARCHAR(20);
+ALTER TABLE {{tables.users}} ADD COLUMN phone VARCHAR(20);
 
 -- Later migration after code deployed
-ALTER TABLE users ALTER COLUMN phone SET NOT NULL;
+ALTER TABLE {{tables.users}} ALTER COLUMN phone SET NOT NULL;
 
 -- Bad: Immediate breaking change
-ALTER TABLE users ADD COLUMN phone VARCHAR(20) NOT NULL;
+ALTER TABLE {{tables.users}} ADD COLUMN phone VARCHAR(20) NOT NULL;
 ```
 
 ### 4. Data Migrations
@@ -424,15 +419,15 @@ Handle data transformations carefully:
 
 ```sql
 -- Add new column
-ALTER TABLE users ADD COLUMN full_name VARCHAR(255);
+ALTER TABLE {{tables.users}} ADD COLUMN full_name VARCHAR(255);
 
 -- Populate from existing data
-UPDATE users
+UPDATE {{tables.users}}
 SET full_name = CONCAT(first_name, ' ', last_name)
 WHERE full_name IS NULL;
 
 -- Only then make it required
-ALTER TABLE users ALTER COLUMN full_name SET NOT NULL;
+ALTER TABLE {{tables.users}} ALTER COLUMN full_name SET NOT NULL;
 ```
 
 ## Integration Example
@@ -542,6 +537,29 @@ user_id INTEGER REFERENCES users(id)
 user_id INTEGER REFERENCES {{tables.users}}(id)
 ```
 
+### Cross-Schema References
+
+**Important**: PostgreSQL foreign keys cannot cross schemas. If you need to reference data in another schema, use application-level validation:
+
+```python
+# Can't do this in SQL:
+# user_id INTEGER REFERENCES other_schema.users(id)
+
+# Instead, validate in application:
+async def create_order(self, user_id: UUID):
+    # Validate user exists in users schema
+    user = await user_service.get_user(user_id)
+    if not user:
+        raise ValueError("User not found")
+
+    # Create order in orders schema
+    return await self.db.fetch_one("""
+        INSERT INTO {{tables.orders}} (user_id, ...)
+        VALUES ($1, ...)
+        RETURNING *
+    """, user_id)
+```
+
 ### Finding Which Migrations Ran
 
 ```python
@@ -557,5 +575,4 @@ history = await db.fetch_all("""
 ## Next Steps
 
 - [Testing Guide](testing.md) - Test your migrations
-- [Integration Guide](integration-guide.md) - Migration strategies
 - [Patterns Guide](patterns.md) - Deployment patterns for libraries and apps

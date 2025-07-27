@@ -404,4 +404,4 @@ async def test_multi_tenant(test_db):
 ## Next Steps
 
 - [API Reference](api-reference.md) - Complete method documentation
-- [Integration Guide](integration-guide.md) - Application integration patterns
+- [Patterns Guide](patterns.md) - Application integration patterns
