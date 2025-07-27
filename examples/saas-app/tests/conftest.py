@@ -42,7 +42,8 @@ async def admin_db(test_db) -> AdminDatabase:  # noqa: F811
     """Get admin database wrapper."""
     admin = AdminDatabase(test_db)
     # Run the unified schema migrations
-    await admin.migrate_public_schema()
+    migration_manager = await admin.get_migration_manager()
+    await migration_manager.apply_pending_migrations()
     return admin
 
 
