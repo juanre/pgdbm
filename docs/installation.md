@@ -10,6 +10,10 @@
 
 ```bash
 # Basic installation
+uv add pgdbm
+
+# or
+
 pip install pgdbm
 
 # With development tools
