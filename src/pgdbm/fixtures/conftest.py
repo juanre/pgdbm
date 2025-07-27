@@ -19,9 +19,10 @@ from collections.abc import AsyncGenerator
 from typing import Any, Optional
 
 import pytest
+import pytest_asyncio
 
-from pgdbm import AsyncTestDatabase, DatabaseTestCase, DatabaseTestConfig
 from pgdbm.core import AsyncDatabaseManager
+from pgdbm.testing import AsyncTestDatabase, DatabaseTestCase, DatabaseTestConfig
 
 # Default test configuration from environment
 DEFAULT_TEST_CONFIG = DatabaseTestConfig(
@@ -34,7 +35,7 @@ DEFAULT_TEST_CONFIG = DatabaseTestConfig(
 )
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_db() -> AsyncGenerator[AsyncDatabaseManager, None]:
     """
     Provides a test database that is automatically created and destroyed.
@@ -53,7 +54,7 @@ async def test_db() -> AsyncGenerator[AsyncDatabaseManager, None]:
     await test_database.drop_test_database()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_db_with_schema() -> AsyncGenerator[AsyncDatabaseManager, None]:
     """
     Provides a test database with a custom schema for testing schema isolation.
@@ -78,7 +79,7 @@ async def test_db_with_schema() -> AsyncGenerator[AsyncDatabaseManager, None]:
     await test_database.drop_test_database()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_db_factory() -> AsyncGenerator[Any, None]:
     """
     Factory fixture for creating multiple test databases in a single test.
@@ -130,7 +131,7 @@ async def test_db_factory() -> AsyncGenerator[Any, None]:
         await factory.cleanup()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_db_with_tables(
     test_db: AsyncDatabaseManager,
 ) -> AsyncGenerator[AsyncDatabaseManager, None]:
@@ -185,7 +186,7 @@ async def test_db_with_tables(
     yield test_db
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_db_with_data(
     test_db_with_tables: AsyncDatabaseManager,
 ) -> AsyncGenerator[AsyncDatabaseManager, None]:
@@ -263,7 +264,7 @@ def db_test_utils(test_db: AsyncDatabaseManager) -> DatabaseTestCase:
     return DatabaseTestCase(test_db)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_db_isolated(
     test_db: AsyncDatabaseManager,
 ) -> AsyncGenerator[AsyncDatabaseManager, None]:

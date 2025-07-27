@@ -86,7 +86,7 @@ class TestMigrationManagement:
             ]
 
             # Create migration files
-            for filename, expected_version in test_cases:
+            for filename, _ in test_cases:
                 content = f"-- Migration {filename}\nSELECT 1;"
                 (Path(tmpdir) / filename).write_text(content)
 

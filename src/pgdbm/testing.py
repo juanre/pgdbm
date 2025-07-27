@@ -256,9 +256,10 @@ class AsyncTestDatabase:
 
             async def tracked_execute(*args: Any, **kwargs: Any) -> str:
                 self._queries_executed += 1
-                return await original_execute(*args, **kwargs)
+                result: str = await original_execute(*args, **kwargs)
+                return result
 
-            db_manager.execute = tracked_execute  # type: ignore[method-assign]
+            db_manager.execute = tracked_execute
 
         await db_manager.connect()
 
@@ -344,7 +345,8 @@ class AsyncTestDatabase:
         if order_by:
             query += f" ORDER BY {order_by}"
 
-        return await db_manager.fetch_all(query)
+        result: list[dict[str, Any]] = await db_manager.fetch_all(query)
+        return result
 
     async def assert_table_unchanged(
         self,
@@ -404,7 +406,8 @@ class DatabaseTestCase:
 
     async def table_exists(self, table_name: str) -> bool:
         """Check if a table exists."""
-        return await self.db.table_exists(table_name)
+        result: bool = await self.db.table_exists(table_name)
+        return result
 
     async def truncate_table(self, table_name: str, cascade: bool = False) -> None:
         """Truncate a table (remove all rows)."""

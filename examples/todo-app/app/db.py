@@ -1,16 +1,14 @@
 """Database wrapper for the todo application."""
 
 import sys
-from typing import Optional, Any
-from datetime import datetime
 from pathlib import Path
+from typing import Any, Optional
 
 from pgdbm import (
     AsyncDatabaseManager,
-    DatabaseConfig,
     AsyncMigrationManager,
+    DatabaseConfig,
     MonitoredAsyncDatabaseManager,
-    QueryError,
 )
 
 from .config import config

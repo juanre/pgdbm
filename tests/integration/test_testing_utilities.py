@@ -54,7 +54,7 @@ class TestTestingUtilities:
 
         # Verify cleanup (would fail if database still exists)
         # Creating again with same name should work
-        db_name2 = await test_database.create_test_database(suffix="lifecycle")
+        await test_database.create_test_database(suffix="lifecycle")
         await test_database.drop_test_database()
 
     @pytest.mark.asyncio

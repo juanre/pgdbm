@@ -1,12 +1,11 @@
 """Test configuration and fixtures for SaaS app."""
 
-import asyncio
 import os
-from typing import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator
+from uuid import uuid4
+
 import pytest
 from httpx import AsyncClient
-from datetime import datetime
-from uuid import uuid4
 
 # Set test environment
 os.environ["APP_ENV"] = "testing"
@@ -14,18 +13,18 @@ os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL", "postgresql://test:test@localhost/test_saas"
 )
 
-# Import base fixtures from pgdbm
-from pgdbm.fixtures.conftest import *  # Import base fixtures
-
-from app.main import app
+from app.api.auth import get_password_hash
 from app.db.admin import AdminDatabase
 from app.db.tenant import TenantDatabase
+from app.main import app
 from app.models.tenant import TenantCreate
-from app.api.auth import get_password_hash
+
+# Import base fixtures from pgdbm
+from pgdbm.fixtures.conftest import test_db  # noqa: F401 - used by pytest
 
 
 @pytest.fixture
-async def client(test_db) -> AsyncGenerator[AsyncClient, None]:
+async def client(test_db) -> AsyncGenerator[AsyncClient, None]:  # noqa: F811
     """Create test client."""
     # Set up app state manually for tests
     app.state.db = test_db
@@ -39,7 +38,7 @@ async def client(test_db) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
-async def admin_db(test_db) -> AdminDatabase:
+async def admin_db(test_db) -> AdminDatabase:  # noqa: F811
     """Get admin database wrapper."""
     admin = AdminDatabase(test_db)
     # Run the unified schema migrations

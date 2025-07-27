@@ -24,15 +24,15 @@ CREATE TABLE {{tables.tenants}} (
     plan tenant_plan NOT NULL DEFAULT 'free',
     status tenant_status NOT NULL DEFAULT 'active',
     metadata JSONB DEFAULT '{}',
-    
+
     -- Billing
     stripe_customer_id VARCHAR(255),
     stripe_subscription_id VARCHAR(255),
-    
+
     -- Limits
     max_projects INTEGER NOT NULL DEFAULT 10,
     max_users INTEGER NOT NULL DEFAULT 5,
-    
+
     -- Timestamps
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -52,17 +52,17 @@ CREATE TABLE {{tables.users}} (
     api_key VARCHAR(64) UNIQUE,
     is_admin BOOLEAN NOT NULL DEFAULT FALSE,
     tenant_id UUID REFERENCES {{tables.tenants}}(id) ON DELETE CASCADE,
-    
+
     -- Profile
     display_name VARCHAR(255),
     avatar_url VARCHAR(500),
     timezone VARCHAR(50) DEFAULT 'UTC',
-    
+
     -- Permissions within tenant
     role VARCHAR(50) DEFAULT 'member',
     permissions JSONB DEFAULT '{}',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    
+
     -- Timestamps
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -84,11 +84,11 @@ CREATE TABLE {{tables.projects}} (
     status project_status NOT NULL DEFAULT 'planning',
     owner_id UUID NOT NULL REFERENCES {{tables.users}}(id),
     metadata JSONB DEFAULT '{}',
-    
+
     -- Dates
     start_date DATE,
     end_date DATE,
-    
+
     -- Timestamps
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -111,7 +111,7 @@ CREATE TABLE {{tables.tasks}} (
     is_completed BOOLEAN NOT NULL DEFAULT FALSE,
     due_date DATE,
     priority INTEGER DEFAULT 0,
-    
+
     -- Timestamps
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -129,7 +129,7 @@ CREATE TABLE {{tables.project_members}} (
     user_id UUID NOT NULL REFERENCES {{tables.users}}(id) ON DELETE CASCADE,
     role VARCHAR(50) NOT NULL DEFAULT 'viewer',
     joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
+
     PRIMARY KEY (project_id, user_id)
 );
 
@@ -142,7 +142,7 @@ CREATE TABLE {{tables.comments}} (
     task_id UUID NOT NULL REFERENCES {{tables.tasks}}(id) ON DELETE CASCADE,
     author_id UUID NOT NULL REFERENCES {{tables.users}}(id),
     content TEXT NOT NULL,
-    
+
     -- Timestamps
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -162,7 +162,7 @@ CREATE TABLE {{tables.tenant_usage}} (
     period_start DATE NOT NULL,
     period_end DATE NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
+
     UNIQUE(tenant_id, metric_name, period_start, period_end)
 );
 

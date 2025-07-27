@@ -5,7 +5,7 @@ Tests for core async database functionality.
 import asyncpg
 import pytest
 
-from pgdbm import AsyncDatabaseManager, DatabaseConfig, QueryError
+from pgdbm import AsyncDatabaseManager, DatabaseConfig
 
 
 @pytest.mark.unit

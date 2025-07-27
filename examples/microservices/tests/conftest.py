@@ -1,9 +1,8 @@
 """Test configuration for microservices."""
 
 import os
-import asyncio
+
 import pytest
-from typing import AsyncGenerator
 
 # Set test environment
 os.environ["DATABASE_URL"] = os.environ.get(
@@ -11,13 +10,12 @@ os.environ["DATABASE_URL"] = os.environ.get(
 )
 
 # Import base fixtures from pgdbm
-from pgdbm.fixtures.conftest import *  # Import base fixtures
-
+from pgdbm.fixtures.conftest import test_db_factory  # noqa: F401 - used by pytest
 from shared.database import SharedDatabaseManager
 
 
 @pytest.fixture
-async def shared_db(test_db_factory) -> SharedDatabaseManager:
+async def shared_db(test_db_factory) -> SharedDatabaseManager:  # noqa: F811
     """Get shared database manager for tests."""
     # Create a test database
     test_db = await test_db_factory.create_db(suffix="microservices")

@@ -1,10 +1,12 @@
 """Shared data models across microservices."""
-from typing import Optional, List, Dict, Any
-from uuid import UUID
+
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from typing import Any, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 # Enums
@@ -42,7 +44,7 @@ class UserCreate(UserBase):
 
 class User(UserBase):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID
     is_active: bool
     created_at: datetime
@@ -76,14 +78,14 @@ class ProductUpdate(BaseModel):
 
 class Product(ProductBase):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID
     stock_quantity: int
     reserved_quantity: int
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    
+
     @property
     def available_quantity(self) -> int:
         return self.stock_quantity - self.reserved_quantity
@@ -97,7 +99,7 @@ class OrderItemCreate(BaseModel):
 
 class OrderItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID
     order_id: UUID
     product_id: UUID
@@ -108,19 +110,19 @@ class OrderItem(BaseModel):
 
 
 class OrderCreate(BaseModel):
-    items: List[OrderItemCreate]
-    shipping_address: Optional[Dict[str, Any]] = None
+    items: list[OrderItemCreate]
+    shipping_address: Optional[dict[str, Any]] = None
 
 
 class Order(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID
     user_id: UUID
     order_number: str
     status: OrderStatus
     total_amount: Decimal
-    shipping_address: Optional[Dict[str, Any]]
+    shipping_address: Optional[dict[str, Any]]
     created_at: datetime
     updated_at: datetime
     shipped_at: Optional[datetime]
@@ -128,13 +130,13 @@ class Order(BaseModel):
 
 
 class OrderWithItems(Order):
-    items: List[OrderItem] = []
+    items: list[OrderItem] = []
 
 
 # Stock reservation models
 class StockReservation(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID
     product_id: UUID
     order_id: UUID
@@ -149,20 +151,20 @@ class NotificationCreate(BaseModel):
     user_id: UUID
     type: NotificationType
     template_name: str
-    template_data: Dict[str, Any] = {}
+    template_data: dict[str, Any] = {}
     recipient: str
     subject: Optional[str] = None
 
 
 class Notification(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID
     user_id: UUID
     type: NotificationType
     status: NotificationStatus
     template_name: str
-    template_data: Dict[str, Any]
+    template_data: dict[str, Any]
     recipient: str
     subject: Optional[str]
     content: Optional[str]
@@ -189,4 +191,4 @@ class MessageResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     error: str
-    details: Optional[Dict[str, Any]] = None
+    details: Optional[dict[str, Any]] = None

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from pgdbm import AsyncMigrationManager, Migration, MigrationError
+from pgdbm import AsyncMigrationManager, Migration
 
 
 @pytest.fixture

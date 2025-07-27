@@ -1,6 +1,5 @@
 """Main FastAPI application for multi-tenant SaaS."""
 
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -9,10 +8,10 @@ from fastapi.responses import JSONResponse
 
 from pgdbm import AsyncDatabaseManager, DatabaseConfig
 
+from .api import admin, auth, projects, tenants
 from .config import config
 from .db.admin import AdminDatabase
 from .middleware.tenant import api_key_middleware
-from .api import auth, tenants, projects, admin
 
 
 @asynccontextmanager
@@ -32,7 +31,15 @@ async def lifespan(app: FastAPI):
 
     # Run public schema migrations if needed
     if config.app_env != "testing":
-        await admin_db.migrate_public_schema()
+        migration_manager = await admin_db.get_migration_manager()
+        await migration_manager.ensure_migrations_table()
+        pending = await migration_manager.get_pending_migrations()
+
+        if pending:
+            print(f"Applying {len(pending)} pending migration(s)...")
+            for migration in pending:
+                await migration_manager.apply_migration(migration)
+            print("✓ Migrations applied successfully")
 
     yield
 

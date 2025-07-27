@@ -1,12 +1,13 @@
 """Shared database manager for all microservices."""
 
-import os
-from typing import Optional, ClassVar
-from pathlib import Path
 import asyncio
+import os
+from pathlib import Path
+from typing import ClassVar, Optional
 
 import asyncpg
-from pgdbm import AsyncDatabaseManager, DatabaseConfig, AsyncMigrationManager
+
+from pgdbm import AsyncDatabaseManager, AsyncMigrationManager, DatabaseConfig
 
 
 class SharedDatabaseManager:

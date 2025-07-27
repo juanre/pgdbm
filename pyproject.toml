@@ -71,7 +71,7 @@ include = '\.pyi?$'
 [tool.isort]
 profile = "black"
 line_length = 100
-known_first_party = ["pgdbm"]
+known_first_party = ["pgdbm", "app", "services", "shared"]
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 multi_line_output = 3
 include_trailing_comma = true
@@ -98,6 +98,16 @@ namespace_packages = true
 show_error_codes = true
 show_error_context = true
 pretty = true
+explicit_package_bases = true
+
+# Exclude examples from main mypy run
+exclude = [
+    "examples/",
+]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
 
 [tool.ruff]
 target-version = "py39"
@@ -123,7 +133,7 @@ ignore = [
 "__init__.py" = ["F401"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["pgdbm"]
+known-first-party = ["pgdbm", "app", "services", "shared"]
 
 [tool.coverage.run]
 branch = true

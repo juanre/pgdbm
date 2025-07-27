@@ -1,10 +1,12 @@
 """Test configuration and fixtures."""
 
 import os
+
 import pytest
 import pytest_asyncio
-from pgdbm.fixtures.conftest import *  # Import base fixtures
+
 from pgdbm import AsyncMigrationManager
+from pgdbm.fixtures.conftest import test_db_factory  # noqa: F401 - used by pytest
 
 # Set testing environment
 os.environ["APP_ENV"] = "testing"
@@ -13,11 +15,10 @@ os.environ["DATABASE_URL"] = os.environ.get(
 )
 
 from app.db import TodoDatabase
-from app.config import config
 
 
 @pytest_asyncio.fixture
-async def todo_db(test_db_factory):
+async def todo_db(test_db_factory):  # noqa: F811
     """Create todo database with schema and migrations."""
     # Create test database with isolated schema
     db_manager = await test_db_factory.create_db(suffix="todo", schema="test_todo")
@@ -52,6 +53,7 @@ async def todo_db_with_data(todo_db):
 def test_app(todo_db):
     """Create test FastAPI application."""
     from fastapi.testclient import TestClient
+
     from app.main import app
 
     # Override database
@@ -63,7 +65,8 @@ def test_app(todo_db):
 @pytest_asyncio.fixture
 async def async_test_app(todo_db):
     """Create async test client."""
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
+
     from app.main import app
 
     # Override database

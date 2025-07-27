@@ -1,4 +1,5 @@
 """Test tenant management."""
+
 import pytest
 from httpx import AsyncClient
 
@@ -13,10 +14,10 @@ async def test_tenant_signup(client: AsyncClient, admin_db):
             "slug": "new-company",
             "email": "admin@newcompany.com",
             "plan": "starter",
-            "admin_password": "securepass123"
-        }
+            "admin_password": "securepass123",
+        },
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert "api_key" in data
@@ -33,10 +34,10 @@ async def test_duplicate_tenant_slug(client: AsyncClient, test_tenant):
             "slug": test_tenant["tenant"].slug,  # Duplicate slug
             "email": "admin@another.com",
             "plan": "free",
-            "admin_password": "password123"
-        }
+            "admin_password": "password123",
+        },
     )
-    
+
     assert response.status_code == 400
     assert "already taken" in response.json()["detail"]
 
@@ -44,11 +45,8 @@ async def test_duplicate_tenant_slug(client: AsyncClient, test_tenant):
 @pytest.mark.asyncio
 async def test_get_current_tenant(client: AsyncClient, auth_headers):
     """Test getting current tenant info."""
-    response = await client.get(
-        "/api/tenants/current",
-        headers=auth_headers
-    )
-    
+    response = await client.get("/api/tenants/current", headers=auth_headers)
+
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Test Company"
@@ -60,17 +58,11 @@ async def test_get_current_tenant(client: AsyncClient, auth_headers):
 async def test_list_tenants_admin_only(client: AsyncClient, auth_headers, admin_headers):
     """Test that only admins can list all tenants."""
     # Regular user should fail
-    response = await client.get(
-        "/api/tenants/",
-        headers=auth_headers
-    )
+    response = await client.get("/api/tenants/", headers=auth_headers)
     assert response.status_code == 403
-    
+
     # Admin should succeed
-    response = await client.get(
-        "/api/tenants/",
-        headers=admin_headers
-    )
+    response = await client.get("/api/tenants/", headers=admin_headers)
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
@@ -81,12 +73,9 @@ async def test_update_tenant(client: AsyncClient, test_tenant, admin_headers):
     response = await client.patch(
         f"/api/tenants/{test_tenant['tenant'].id}",
         headers=admin_headers,
-        json={
-            "name": "Updated Company Name",
-            "plan": "enterprise"
-        }
+        json={"name": "Updated Company Name", "plan": "enterprise"},
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Updated Company Name"
@@ -99,15 +88,12 @@ async def test_suspend_tenant(client: AsyncClient, test_tenant, admin_headers):
     response = await client.post(
         f"/api/tenants/{test_tenant['tenant'].id}/suspend",
         headers=admin_headers,
-        params={"reason": "Non-payment"}
+        params={"reason": "Non-payment"},
     )
-    
+
     assert response.status_code == 200
-    
+
     # Verify tenant is suspended
-    response = await client.get(
-        f"/api/tenants/{test_tenant['tenant'].id}",
-        headers=admin_headers
-    )
+    response = await client.get(f"/api/tenants/{test_tenant['tenant'].id}", headers=admin_headers)
     assert response.status_code == 200
     assert response.json()["status"] == "suspended"

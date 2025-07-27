@@ -7,10 +7,9 @@ import pytest
 from pgdbm import (
     AsyncDatabaseManager,
     DatabaseConfig,
+    DatabaseTestError,
     MigrationError,
     SchemaError,
-    DatabaseTestConfig,
-    DatabaseTestError,
 )
 from pgdbm.migrations import AsyncMigrationManager
 from pgdbm.testing import AsyncTestDatabase

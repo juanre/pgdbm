@@ -2,13 +2,14 @@
 
 import uuid
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from .api import health, todos
 from .config import config
 from .db import TodoDatabase
 from .models import ErrorResponse
-from .api import todos, health
 
 
 @asynccontextmanager

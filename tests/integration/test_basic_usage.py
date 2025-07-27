@@ -7,6 +7,7 @@ Integration tests for basic pgdbm usage patterns.
 These tests demonstrate how users would typically interact with the library.
 """
 
+import json
 from datetime import datetime
 
 import asyncpg
@@ -434,7 +435,7 @@ class TestAdvancedFeatures:
     @pytest.mark.asyncio
     async def test_connection_pool_reuse(self, test_db):
         """Test that connection pool properly reuses connections."""
-        initial_stats = await test_db.get_pool_stats()
+        await test_db.get_pool_stats()  # Ensure pool is initialized
 
         # Run multiple queries
         tasks = []
@@ -453,6 +454,3 @@ class TestAdvancedFeatures:
         # Check pool stats - should reuse connections
         final_stats = await test_db.get_pool_stats()
         assert final_stats["size"] <= final_stats["max_size"]
-
-
-import json

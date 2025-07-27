@@ -266,7 +266,7 @@ class DatabaseDebugger:
 
     async def find_blocking_queries(self) -> list[dict[str, Any]]:
         """Find queries that are blocking other queries."""
-        return await self.db.fetch_all(
+        result: list[dict[str, Any]] = await self.db.fetch_all(
             """
             SELECT
                 blocked_locks.pid AS blocked_pid,
@@ -297,10 +297,11 @@ class DatabaseDebugger:
             WHERE NOT blocked_locks.GRANTED
         """
         )
+        return result
 
     async def find_long_running_queries(self, threshold_seconds: int = 300) -> list[dict[str, Any]]:
         """Find queries running longer than threshold."""
-        return await self.db.fetch_all(
+        result: list[dict[str, Any]] = await self.db.fetch_all(
             """
             SELECT
                 pid,
@@ -320,6 +321,7 @@ class DatabaseDebugger:
         """,
             threshold_seconds,
         )
+        return result
 
     async def analyze_table_sizes(self) -> list[dict[str, Any]]:
         """Get table sizes and statistics."""
@@ -327,7 +329,7 @@ class DatabaseDebugger:
         if self.db.schema:
             schema_filter = f"AND schemaname = '{self.db.schema}'"
 
-        return await self.db.fetch_all(
+        result: list[dict[str, Any]] = await self.db.fetch_all(
             f"""
             SELECT
                 schemaname,
@@ -346,6 +348,7 @@ class DatabaseDebugger:
             ORDER BY pg_total_relation_size(schemaname||'.'||relname) DESC
         """
         )
+        return result
 
 
 def log_query_performance(

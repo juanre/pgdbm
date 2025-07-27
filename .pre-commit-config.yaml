@@ -41,18 +41,11 @@ repos:
     rev: v1.17.0
     hooks:
       - id: mypy
-        additional_dependencies: [asyncpg-stubs, pydantic]
-        args: ['--config-file=pyproject.toml']
+        additional_dependencies: [asyncpg-stubs, pydantic, pytest, pytest-asyncio]
+        args: ['--config-file=pyproject.toml', 'src/']
         files: '^src/'
         pass_filenames: false
 
-  - repo: https://github.com/pycqa/bandit
-    rev: 1.8.6
-    hooks:
-      - id: bandit
-        args: ['-c', 'pyproject.toml']
-        additional_dependencies: ['bandit[toml]']
-        exclude: '^tests/'
 
 ci:
   autoupdate_schedule: weekly

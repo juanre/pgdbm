@@ -4,12 +4,11 @@ This example demonstrates row-level multi-tenancy where all tenants share
 the same tables and are isolated by a tenant_id column in each row.
 """
 
-import os
-from typing import Optional, Any, Dict, List
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any, Optional
 
-from pgdbm import AsyncDatabaseManager, DatabaseConfig, QueryError, AsyncDBError
+from pgdbm import AsyncDatabaseManager, AsyncDBError, DatabaseConfig
 
 
 class BaseDatabase:
@@ -39,21 +38,21 @@ class BaseDatabase:
 
         return await self.db.execute(query, *args)
 
-    async def fetch_one(self, query: str, *args) -> Optional[Dict[str, Any]]:
+    async def fetch_one(self, query: str, *args) -> Optional[dict[str, Any]]:
         """Fetch one row."""
         if not self.db:
             raise AsyncDBError("Database not initialized")
 
         return await self.db.fetch_one(query, *args)
 
-    async def fetch_all(self, query: str, *args) -> List[Dict[str, Any]]:
+    async def fetch_all(self, query: str, *args) -> list[dict[str, Any]]:
         """Fetch all rows."""
         if not self.db:
             raise AsyncDBError("Database not initialized")
 
         return await self.db.fetch_all(query, *args)
 
-    async def execute_many(self, query: str, args_list: List[tuple]) -> None:
+    async def execute_many(self, query: str, args_list: list[tuple]) -> None:
         """Execute query multiple times with different arguments."""
         if not self.db:
             raise AsyncDBError("Database not initialized")

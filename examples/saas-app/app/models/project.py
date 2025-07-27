@@ -1,13 +1,16 @@
 """Project and task models."""
-from typing import Optional, Dict, Any, List
-from uuid import UUID
-from datetime import datetime, date
+
+from datetime import date, datetime
 from enum import Enum
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProjectStatus(str, Enum):
     """Project status options."""
+
     PLANNING = "planning"
     ACTIVE = "active"
     ON_HOLD = "on_hold"
@@ -17,33 +20,37 @@ class ProjectStatus(str, Enum):
 
 class ProjectBase(BaseModel):
     """Base project model."""
+
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     status: ProjectStatus = ProjectStatus.PLANNING
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    metadata: Optional[dict[str, Any]] = Field(default_factory=dict)
 
 
 class ProjectCreate(ProjectBase):
     """Model for creating a project."""
+
     pass
 
 
 class ProjectUpdate(BaseModel):
     """Model for updating a project."""
+
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     status: Optional[ProjectStatus] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[dict[str, Any]] = None
 
 
 class Project(ProjectBase):
     """Complete project model."""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID
     owner_id: UUID
     created_at: datetime
@@ -53,6 +60,7 @@ class Project(ProjectBase):
 
 class TaskBase(BaseModel):
     """Base task model."""
+
     title: str = Field(..., min_length=1, max_length=500)
     description: Optional[str] = None
     assigned_to: Optional[UUID] = None
@@ -62,11 +70,13 @@ class TaskBase(BaseModel):
 
 class TaskCreate(TaskBase):
     """Model for creating a task."""
+
     pass
 
 
 class TaskUpdate(BaseModel):
     """Model for updating a task."""
+
     title: Optional[str] = Field(None, min_length=1, max_length=500)
     description: Optional[str] = None
     assigned_to: Optional[UUID] = None
@@ -77,8 +87,9 @@ class TaskUpdate(BaseModel):
 
 class Task(TaskBase):
     """Complete task model."""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID
     project_id: UUID
     is_completed: bool
@@ -89,15 +100,17 @@ class Task(TaskBase):
 
 class ProjectWithTasks(Project):
     """Project model with tasks."""
-    tasks: List[Task] = []
+
+    tasks: list[Task] = []
     task_count: int = 0
     completed_task_count: int = 0
 
 
 class Comment(BaseModel):
     """Task comment model."""
+
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: UUID
     task_id: UUID
     author_id: UUID

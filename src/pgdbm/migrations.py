@@ -414,7 +414,7 @@ class AsyncMigrationManager:
         if self.db.schema:
             table_name = f"{self.db.schema}.{self.migrations_table}"
 
-        return await self.db.fetch_all(
+        result: list[dict[str, Any]] = await self.db.fetch_all(
             f"""
             SELECT
                 filename,
@@ -430,3 +430,4 @@ class AsyncMigrationManager:
             self.module_name,
             limit,
         )
+        return result

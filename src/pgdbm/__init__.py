@@ -11,12 +11,12 @@ from pgdbm.errors import (
     AsyncDBError,
     ConfigurationError,
     ConnectionError,
+    DatabaseTestError,
     MigrationError,
     MonitoringError,
     PoolError,
     QueryError,
     SchemaError,
-    DatabaseTestError,
     TransactionError,
 )
 from pgdbm.migrations import AsyncMigrationManager, Migration
