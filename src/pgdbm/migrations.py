@@ -291,68 +291,86 @@ class AsyncMigrationManager:
         """
         await self.ensure_migrations_table()
 
-        # Get pending migrations
-        pending = await self.get_pending_migrations()
-        applied = await self.get_applied_migrations()
+        # Use advisory lock to serialize migrations per module across processes
+        # Lock key derived from module_name with a namespace prefix to reduce collision risk
+        lock_key_query = "SELECT pg_advisory_lock(hashtext('pgdbm_migration_' || $1))"
+        unlock_query = "SELECT pg_advisory_unlock(hashtext('pgdbm_migration_' || $1))"
 
-        if not pending:
-            logger.info("No pending migrations to apply")
-            return {
-                "status": "up_to_date",
-                "applied": [],
-                "skipped": list(applied.keys()),
-                "total": len(applied),
-            }
+        try:
+            await self.db.execute(lock_key_query, self.module_name)
 
-        if dry_run:
-            logger.info(f"DRY RUN: Would apply {len(pending)} migrations:")
-            for migration in pending:
-                logger.info(f"  - {migration.filename}")
-            return {
-                "status": "dry_run",
-                "pending": [m.filename for m in pending],
-                "applied": [],
-                "skipped": list(applied.keys()),
-                "total": len(pending) + len(applied),
-            }
+            # Get pending migrations
+            pending = await self.get_pending_migrations()
+            applied = await self.get_applied_migrations()
 
-        # Apply migrations
-        applied_migrations = []
-        total_time_ms = 0.0
-
-        for migration in pending:
-            try:
-                execution_time = await self.apply_migration(migration)
-                applied_migrations.append(
-                    {
-                        "filename": migration.filename,
-                        "execution_time_ms": execution_time,
-                    }
-                )
-                total_time_ms += execution_time
-
-            except Exception as e:
-                logger.error(f"Failed to apply migration '{migration.filename}': {e}")
+            if not pending:
+                logger.info("No pending migrations to apply")
                 return {
-                    "status": "error",
-                    "error": str(e),
-                    "failed_migration": migration.filename,
-                    "applied": applied_migrations,
+                    "status": "up_to_date",
+                    "applied": [],
                     "skipped": list(applied.keys()),
-                    "total": len(applied) + len(pending),
+                    "total": len(applied),
                 }
 
-        logger.info(
-            f"Successfully applied {len(applied_migrations)} migrations " f"in {total_time_ms}ms"
-        )
+            if dry_run:
+                logger.info(f"DRY RUN: Would apply {len(pending)} migrations:")
+                for migration in pending:
+                    logger.info(f"  - {migration.filename}")
+                return {
+                    "status": "dry_run",
+                    "pending": [m.filename for m in pending],
+                    "applied": [],
+                    "skipped": list(applied.keys()),
+                    "total": len(pending) + len(applied),
+                }
 
-        return {
-            "status": "success",
-            "applied": applied_migrations,
-            "skipped": list(applied.keys()),
-            "total": len(applied) + len(applied_migrations),
-            "total_time_ms": total_time_ms,
-        }
+            # Apply migrations
+            applied_migrations = []
+            total_time_ms = 0.0
+
+            for migration in pending:
+                try:
+                    execution_time = await self.apply_migration(migration)
+                    applied_migrations.append(
+                        {
+                            "filename": migration.filename,
+                            "execution_time_ms": execution_time,
+                        }
+                    )
+                    total_time_ms += execution_time
+
+                except Exception as e:
+                    logger.error(f"Failed to apply migration '{migration.filename}': {e}")
+                    return {
+                        "status": "error",
+                        "error": str(e),
+                        "failed_migration": migration.filename,
+                        "applied": applied_migrations,
+                        "skipped": list(applied.keys()),
+                        "total": len(applied) + len(pending),
+                    }
+
+            logger.info(
+                f"Successfully applied {len(applied_migrations)} migrations "
+                f"in {total_time_ms}ms"
+            )
+
+            return {
+                "status": "success",
+                "applied": applied_migrations,
+                "skipped": list(applied.keys()),
+                "total": len(applied) + len(applied_migrations),
+                "total_time_ms": total_time_ms,
+            }
+        finally:
+            try:
+                await self.db.execute(unlock_query, self.module_name)
+            except Exception as e:
+                # Best-effort unlock; connection close will also release
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(
+                        f"Failed to release advisory lock for module '{self.module_name}': {e}"
+                    )
 
     async def create_migration(self, name: str, content: str, auto_transaction: bool = True) -> str:
         """

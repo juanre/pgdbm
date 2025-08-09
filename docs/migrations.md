@@ -222,24 +222,13 @@ Use `{{tables.tablename}}` for:
 
 ## Migration Tracking
 
-pgdbm tracks migrations in a `schema_migrations` table:
+pgdbm tracks migrations in a `schema_migrations` table. By default the table is created in the same schema configured for the `AsyncDatabaseManager` (if a schema is set), otherwise in `public`.
 
-```sql
-CREATE TABLE IF NOT EXISTS schema_migrations (
-    id SERIAL PRIMARY KEY,
-    filename VARCHAR(255) NOT NULL,
-    checksum VARCHAR(64) NOT NULL,
-    module_name VARCHAR(100),
-    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    applied_by VARCHAR(100) DEFAULT CURRENT_USER,
-    execution_time_ms INTEGER,
-    UNIQUE(filename, module_name)
-);
-```
+Note: The docs use `{{schema}}`/`{{tables.*}}` as placeholders to indicate schema-aware resolution at runtime. The actual SQL executed will be schema-qualified appropriately based on the manager’s configuration. For example, with `schema="myapp"`, the table will be created as `"myapp".schema_migrations`; without a schema it will be created in `public`.
 
 ### The module_name Parameter
 
-The `module_name` parameter enables multiple applications or libraries to share the same database:
+The `module_name` parameter enables multiple applications or libraries to share the same database. Each module's records are isolated via the `module_name` column and the per-schema placement of the tracking table when a schema is configured:
 
 ```python
 # Default: uses schema name or "default"
