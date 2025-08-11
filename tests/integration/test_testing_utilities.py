@@ -157,7 +157,7 @@ class TestTestingUtilities:
     async def test_fixture_with_tables(self, test_db_with_tables):
         """Test the test_db_with_tables fixture."""
         # Verify tables exist but are empty
-        tables = ["users", "projects", "tasks"]
+        tables = ["users", "projects", "agents"]
 
         for table in tables:
             assert await test_db_with_tables.table_exists(table)
@@ -178,9 +178,9 @@ class TestTestingUtilities:
         )
 
         task_id = await test_db_with_tables.execute_and_return_id(
-            "INSERT INTO tasks (project_id, title, assigned_to) VALUES ($1, $2, $3)",
+            "INSERT INTO agents (project_id, title, assigned_to) VALUES ($1, $2, $3)",
             project_id,
-            "Test Task",
+            "Test Agent",
             user_id,
         )
 
@@ -191,7 +191,7 @@ class TestTestingUtilities:
                 t.title,
                 p.name as project_name,
                 u.email as assigned_to_email
-            FROM tasks t
+            FROM agents t
             JOIN projects p ON t.project_id = p.id
             JOIN users u ON t.assigned_to = u.id
             WHERE t.id = $1
@@ -199,7 +199,7 @@ class TestTestingUtilities:
             task_id,
         )
 
-        assert result["title"] == "Test Task"
+        assert result["title"] == "Test Agent"
         assert result["project_name"] == "Test Project"
         assert result["assigned_to_email"] == "test@example.com"
 
@@ -218,9 +218,9 @@ class TestTestingUtilities:
         assert len(projects) == 2
         assert all(p["owner_id"] == users[0]["id"] for p in projects)
 
-        # Verify tasks
-        tasks = await test_db_with_data.fetch_all("SELECT * FROM tasks ORDER BY id")
-        assert len(tasks) == 5
+        # Verify agents
+        agents = await test_db_with_data.fetch_all("SELECT * FROM agents ORDER BY id")
+        assert len(agents) == 5
 
         # Test complex query on sample data
         task_summary = await test_db_with_data.fetch_all(
@@ -232,7 +232,7 @@ class TestTestingUtilities:
                 SUM(CASE WHEN t.status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
                 SUM(CASE WHEN t.status = 'pending' THEN 1 ELSE 0 END) as pending
             FROM projects p
-            LEFT JOIN tasks t ON p.id = t.project_id
+            LEFT JOIN agents t ON p.id = t.project_id
             GROUP BY p.id, p.name
             ORDER BY p.name
         """

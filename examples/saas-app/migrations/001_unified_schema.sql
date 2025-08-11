@@ -101,7 +101,7 @@ CREATE INDEX idx_projects_status ON {{tables.projects}}(status);
 CREATE INDEX idx_projects_tenant_status ON {{tables.projects}}(tenant_id, status);
 
 -- Tasks table
-CREATE TABLE {{tables.tasks}} (
+CREATE TABLE {{tables.agents}} (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES {{tables.tenants}}(id) ON DELETE CASCADE,
     project_id UUID NOT NULL REFERENCES {{tables.projects}}(id) ON DELETE CASCADE,
@@ -118,10 +118,10 @@ CREATE TABLE {{tables.tasks}} (
     completed_at TIMESTAMPTZ
 );
 
-CREATE INDEX idx_tasks_tenant ON {{tables.tasks}}(tenant_id);
-CREATE INDEX idx_tasks_project ON {{tables.tasks}}(project_id);
-CREATE INDEX idx_tasks_assigned ON {{tables.tasks}}(assigned_to);
-CREATE INDEX idx_tasks_tenant_completed ON {{tables.tasks}}(tenant_id, is_completed);
+CREATE INDEX idx_tasks_tenant ON {{tables.agents}}(tenant_id);
+CREATE INDEX idx_tasks_project ON {{tables.agents}}(project_id);
+CREATE INDEX idx_tasks_assigned ON {{tables.agents}}(assigned_to);
+CREATE INDEX idx_tasks_tenant_completed ON {{tables.agents}}(tenant_id, is_completed);
 
 -- Project members junction table
 CREATE TABLE {{tables.project_members}} (
@@ -139,7 +139,7 @@ CREATE INDEX idx_project_members_user ON {{tables.project_members}}(user_id);
 CREATE TABLE {{tables.comments}} (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES {{tables.tenants}}(id) ON DELETE CASCADE,
-    task_id UUID NOT NULL REFERENCES {{tables.tasks}}(id) ON DELETE CASCADE,
+    task_id UUID NOT NULL REFERENCES {{tables.agents}}(id) ON DELETE CASCADE,
     author_id UUID NOT NULL REFERENCES {{tables.users}}(id),
     content TEXT NOT NULL,
 
@@ -202,7 +202,7 @@ CREATE TRIGGER projects_updated_at
     EXECUTE FUNCTION update_updated_at();
 
 CREATE TRIGGER tasks_updated_at
-    BEFORE UPDATE ON {{tables.tasks}}
+    BEFORE UPDATE ON {{tables.agents}}
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at();
 
@@ -214,13 +214,13 @@ CREATE TRIGGER comments_updated_at
 -- Row Level Security (optional but recommended)
 -- Enable RLS on all tenant-scoped tables
 ALTER TABLE {{tables.projects}} ENABLE ROW LEVEL SECURITY;
-ALTER TABLE {{tables.tasks}} ENABLE ROW LEVEL SECURITY;
+ALTER TABLE {{tables.agents}} ENABLE ROW LEVEL SECURITY;
 ALTER TABLE {{tables.comments}} ENABLE ROW LEVEL SECURITY;
 
 -- Example RLS policies (you'd set current_setting('app.current_tenant') in your app)
 -- CREATE POLICY tenant_isolation_projects ON {{tables.projects}}
 --     FOR ALL USING (tenant_id = current_setting('app.current_tenant')::uuid);
--- CREATE POLICY tenant_isolation_tasks ON {{tables.tasks}}
+-- CREATE POLICY tenant_isolation_tasks ON {{tables.agents}}
 --     FOR ALL USING (tenant_id = current_setting('app.current_tenant')::uuid);
 -- CREATE POLICY tenant_isolation_comments ON {{tables.comments}}
 --     FOR ALL USING (tenant_id = current_setting('app.current_tenant')::uuid);

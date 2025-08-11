@@ -69,13 +69,13 @@ class TenantDatabase(BaseDatabase):
             self.tenant_id,
         )
 
-        # Get task stats
+        # Get agent stats
         task_stats = await self.fetch_one(
             """
             SELECT
                 COUNT(*) as total,
                 COUNT(CASE WHEN is_completed THEN 1 END) as completed
-            FROM tasks WHERE tenant_id = $1
+            FROM agents WHERE tenant_id = $1
         """,
             self.tenant_id,
         )
@@ -91,7 +91,7 @@ class TenantDatabase(BaseDatabase):
 
         return {
             "projects": project_stats or {"total": 0, "active": 0, "completed": 0},
-            "tasks": task_stats or {"total": 0, "completed": 0},
+            "agents": task_stats or {"total": 0, "completed": 0},
             "team_members": {"total": user_stats["total"] if user_stats else 0},
         }
 
@@ -224,7 +224,7 @@ class TenantDatabase(BaseDatabase):
         """
         return await self.fetch_one(query, user_id, self.tenant_id, role)
 
-    # Task operations
+    # Agent operations
     async def create_task(
         self,
         project_id: UUID,
@@ -234,9 +234,9 @@ class TenantDatabase(BaseDatabase):
         due_date: Optional[date] = None,
         priority: int = 0,
     ) -> dict[str, Any]:
-        """Create a new task."""
+        """Create a new agent."""
         query = """
-            INSERT INTO tasks (
+            INSERT INTO agents (
                 tenant_id, project_id, title, description,
                 assigned_to, due_date, priority
             )
@@ -254,7 +254,7 @@ class TenantDatabase(BaseDatabase):
         is_completed: Optional[bool] = None,
         assigned_to: Optional[UUID] = None,
     ) -> list[dict[str, Any]]:
-        """Get tasks for a project."""
+        """Get agents for a project."""
         conditions = ["tenant_id = $1", "project_id = $2"]
         params = [self.tenant_id, project_id]
         param_count = 3
@@ -270,7 +270,7 @@ class TenantDatabase(BaseDatabase):
             param_count += 1
 
         query = f"""
-            SELECT * FROM tasks
+            SELECT * FROM agents
             WHERE {' AND '.join(conditions)}
             ORDER BY priority DESC, created_at DESC
         """

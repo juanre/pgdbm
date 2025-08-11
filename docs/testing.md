@@ -89,7 +89,7 @@ Pre-created common tables:
 
 ```python
 async def test_with_tables(test_db_with_tables):
-    # Tables already exist: users, projects, tasks
+    # Tables already exist: users, projects, agents
     users = await test_db_with_tables.fetch_all(
         "SELECT * FROM users"
     )
@@ -102,7 +102,7 @@ Tables with sample data:
 
 ```python
 async def test_with_sample_data(test_db_with_data):
-    # Has users, projects, tasks with sample data
+    # Has users, projects, agents with sample data
     users = await test_db_with_data.fetch_all(
         "SELECT * FROM users ORDER BY id"
     )

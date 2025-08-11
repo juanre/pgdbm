@@ -85,7 +85,7 @@ async def test_multiple_managers_shared_pool(test_db_manager):
 
     try:
         # Create multiple managers with different schemas
-        task_db = AsyncDatabaseManager(pool=pool, schema="tasks")
+        task_db = AsyncDatabaseManager(pool=pool, schema="agents")
         user_db = AsyncDatabaseManager(pool=pool, schema="users")
         admin_db = AsyncDatabaseManager(pool=pool, schema="admin")
 
@@ -95,12 +95,12 @@ async def test_multiple_managers_shared_pool(test_db_manager):
         assert admin_db._pool is pool
 
         # Verify different schemas
-        assert task_db.schema == "tasks"
+        assert task_db.schema == "agents"
         assert user_db.schema == "users"
         assert admin_db.schema == "admin"
 
         # Create schemas
-        await task_db.execute("CREATE SCHEMA IF NOT EXISTS tasks")
+        await task_db.execute("CREATE SCHEMA IF NOT EXISTS agents")
         await user_db.execute("CREATE SCHEMA IF NOT EXISTS users")
         await admin_db.execute("CREATE SCHEMA IF NOT EXISTS admin")
 
@@ -124,7 +124,7 @@ async def test_multiple_managers_shared_pool(test_db_manager):
         )
 
         # Insert data
-        await task_db.execute("INSERT INTO {{tables.items}} (name) VALUES ($1)", "Task Item")
+        await task_db.execute("INSERT INTO {{tables.items}} (name) VALUES ($1)", "Agent Item")
         await user_db.execute("INSERT INTO {{tables.items}} (name) VALUES ($1)", "User Item")
 
         # Verify data isolation between schemas
@@ -132,7 +132,7 @@ async def test_multiple_managers_shared_pool(test_db_manager):
         user_items = await user_db.fetch_all("SELECT * FROM {{tables.items}}")
 
         assert len(task_items) == 1
-        assert task_items[0]["name"] == "Task Item"
+        assert task_items[0]["name"] == "Agent Item"
 
         assert len(user_items) == 1
         assert user_items[0]["name"] == "User Item"

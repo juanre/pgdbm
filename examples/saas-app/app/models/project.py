@@ -1,4 +1,4 @@
-"""Project and task models."""
+"""Project and agent models."""
 
 from datetime import date, datetime
 from enum import Enum
@@ -59,7 +59,7 @@ class Project(ProjectBase):
 
 
 class TaskBase(BaseModel):
-    """Base task model."""
+    """Base agent model."""
 
     title: str = Field(..., min_length=1, max_length=500)
     description: Optional[str] = None
@@ -68,14 +68,14 @@ class TaskBase(BaseModel):
     priority: int = Field(default=0, ge=0, le=5)
 
 
-class TaskCreate(TaskBase):
-    """Model for creating a task."""
+class AgentCreate(TaskBase):
+    """Model for creating a agent."""
 
     pass
 
 
-class TaskUpdate(BaseModel):
-    """Model for updating a task."""
+class AgentUpdate(BaseModel):
+    """Model for updating a agent."""
 
     title: Optional[str] = Field(None, min_length=1, max_length=500)
     description: Optional[str] = None
@@ -85,8 +85,8 @@ class TaskUpdate(BaseModel):
     priority: Optional[int] = Field(None, ge=0, le=5)
 
 
-class Task(TaskBase):
-    """Complete task model."""
+class Agent(TaskBase):
+    """Complete agent model."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -99,15 +99,15 @@ class Task(TaskBase):
 
 
 class ProjectWithTasks(Project):
-    """Project model with tasks."""
+    """Project model with agents."""
 
-    tasks: list[Task] = []
+    agents: list[Agent] = []
     task_count: int = 0
     completed_task_count: int = 0
 
 
 class Comment(BaseModel):
-    """Task comment model."""
+    """Agent comment model."""
 
     model_config = ConfigDict(from_attributes=True)
 

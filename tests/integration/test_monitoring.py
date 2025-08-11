@@ -204,7 +204,7 @@ class TestMonitoringFeatures:
                 pass
 
         # Start the query
-        task = asyncio.create_task(long_query())
+        agent = asyncio.create_task(long_query())
 
         # Give it time to start
         await asyncio.sleep(0.1)
@@ -217,7 +217,7 @@ class TestMonitoringFeatures:
         assert any("pg_sleep" in q["query"] for q in long_running)
 
         # Clean up
-        await task
+        await agent
 
     @pytest.mark.asyncio
     async def test_table_size_analysis(self, test_db):
@@ -336,8 +336,8 @@ class TestMonitoringFeatures:
             await test_db.fetch_one(f"SELECT {i} as num, pg_sleep(0.1)")
 
         # Run multiple queries concurrently
-        tasks = [run_query(i) for i in range(5)]
-        await asyncio.gather(*tasks)
+        agents = [run_query(i) for i in range(5)]
+        await asyncio.gather(*agents)
 
         # Check pool stats after load
         after_stats = await test_db.get_pool_stats()

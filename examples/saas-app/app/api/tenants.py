@@ -118,7 +118,7 @@ async def get_current_tenant(request: Request):
         **tenant.model_dump(),
         user_count=stats["team_members"]["total"],
         project_count=stats["projects"]["total"],
-        task_count=stats["tasks"]["total"],
+        task_count=stats["agents"]["total"],
     )
 
 
@@ -140,7 +140,7 @@ async def get_tenant(request: Request, tenant_id: UUID):
         **tenant.model_dump(),
         user_count=stats["team_members"]["total"],
         project_count=stats["projects"]["total"],
-        task_count=stats["tasks"]["total"],
+        task_count=stats["agents"]["total"],
     )
 
 

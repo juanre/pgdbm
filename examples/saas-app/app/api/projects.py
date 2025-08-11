@@ -13,7 +13,7 @@ from ..models.project import (
     ProjectStatus,
     ProjectUpdate,
     ProjectWithTasks,
-    TaskCreate,
+    AgentCreate,
 )
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])
@@ -70,7 +70,7 @@ async def list_projects(
 
 @router.get("/{project_id}", response_model=ProjectWithTasks)
 async def get_project(request: Request, project_id: UUID):
-    """Get project details with tasks."""
+    """Get project details with agents."""
     tenant_id = require_tenant(request)
     db = TenantDatabase(tenant_id, request.app.state.db)
 
@@ -78,17 +78,17 @@ async def get_project(request: Request, project_id: UUID):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Get tasks
-    tasks = await db.fetch_all(
-        "SELECT * FROM {{tables.tasks}} WHERE project_id = $1 ORDER BY created_at DESC", project_id
+    # Get agents
+    agents = await db.fetch_all(
+        "SELECT * FROM {{tables.agents}} WHERE project_id = $1 ORDER BY created_at DESC", project_id
     )
 
-    task_count = len(tasks)
-    completed_count = sum(1 for t in tasks if t["is_completed"])
+    task_count = len(agents)
+    completed_count = sum(1 for t in agents if t["is_completed"])
 
     return ProjectWithTasks(
         **project.model_dump(),
-        tasks=[],  # Simplified for example
+        agents=[],  # Simplified for example
         task_count=task_count,
         completed_task_count=completed_count,
     )
@@ -152,9 +152,9 @@ async def delete_project(request: Request, project_id: UUID):
     return {"message": "Project deleted"}
 
 
-@router.post("/{project_id}/tasks")
-async def create_task(request: Request, project_id: UUID, task_data: TaskCreate):
-    """Create a task in a project."""
+@router.post("/{project_id}/agents")
+async def create_task(request: Request, project_id: UUID, task_data: AgentCreate):
+    """Create a agent in a project."""
     tenant_id = require_tenant(request)
     db = TenantDatabase(tenant_id, request.app.state.db)
 
@@ -163,8 +163,8 @@ async def create_task(request: Request, project_id: UUID, task_data: TaskCreate)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Create task
-    task = await db.create_task(
+    # Create agent
+    agent = await db.create_task(
         project_id=project_id,
         title=task_data.title,
         description=task_data.description,
@@ -173,10 +173,10 @@ async def create_task(request: Request, project_id: UUID, task_data: TaskCreate)
         priority=task_data.priority,
     )
 
-    if not task:
-        raise HTTPException(status_code=500, detail="Failed to create task")
+    if not agent:
+        raise HTTPException(status_code=500, detail="Failed to create agent")
 
-    return task
+    return agent
 
 
 @router.get("/stats/summary")

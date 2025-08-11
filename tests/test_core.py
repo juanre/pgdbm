@@ -210,7 +210,7 @@ async def test_table_exists(sample_tables):
     # Test existing tables
     assert await db.table_exists("users") is True
     assert await db.table_exists("projects") is True
-    assert await db.table_exists("tasks") is True
+    assert await db.table_exists("agents") is True
 
     # Test non-existing table
     assert await db.table_exists("non_existing_table") is False

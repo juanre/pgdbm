@@ -438,13 +438,13 @@ class TestAdvancedFeatures:
         await test_db.get_pool_stats()  # Ensure pool is initialized
 
         # Run multiple queries
-        tasks = []
+        agents = []
         for i in range(10):
-            tasks.append(test_db.fetch_one(f"SELECT {i} as num"))
+            agents.append(test_db.fetch_one(f"SELECT {i} as num"))
 
         import asyncio
 
-        results = await asyncio.gather(*tasks)
+        results = await asyncio.gather(*agents)
 
         # Check all queries succeeded
         assert len(results) == 10

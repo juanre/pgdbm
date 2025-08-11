@@ -56,10 +56,10 @@ async def sample_tables(test_db):
     """
     )
 
-    # Create tasks table
+    # Create agents table
     await test_db.execute(
         """
-        CREATE TABLE tasks (
+        CREATE TABLE agents (
             id SERIAL PRIMARY KEY,
             project_id INTEGER REFERENCES projects(id),
             title VARCHAR(255) NOT NULL,

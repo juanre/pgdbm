@@ -44,7 +44,7 @@ class EventBus:
         self._db = shared.get_manager()
         self._running = True
 
-        # Start background task to process events
+        # Start background agent to process events
         self._task = asyncio.create_task(self._process_events())
 
     async def close(self) -> None:
@@ -100,7 +100,7 @@ class EventBus:
         return event.id
 
     async def _process_events(self) -> None:
-        """Background task to process unprocessed events."""
+        """Background agent to process unprocessed events."""
         while self._running:
             try:
                 # Fetch unprocessed events

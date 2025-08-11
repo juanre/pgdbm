@@ -154,7 +154,7 @@ async def test_apply_pending_migrations(test_db_manager, migration_manager, migr
     migrations = [
         ("001_users.sql", "CREATE TABLE users (id SERIAL PRIMARY KEY);"),
         ("002_projects.sql", "CREATE TABLE projects (id SERIAL PRIMARY KEY);"),
-        ("003_tasks.sql", "CREATE TABLE tasks (id SERIAL PRIMARY KEY);"),
+        ("003_tasks.sql", "CREATE TABLE agents (id SERIAL PRIMARY KEY);"),
     ]
 
     for filename, content in migrations:
@@ -168,7 +168,7 @@ async def test_apply_pending_migrations(test_db_manager, migration_manager, migr
     assert result["total"] == 3
 
     # Verify all tables exist
-    for table in ["users", "projects", "tasks"]:
+    for table in ["users", "projects", "agents"]:
         exists = await test_db_manager.table_exists(table)
         assert exists is True
 

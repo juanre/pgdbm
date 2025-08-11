@@ -42,7 +42,7 @@ async def test_list_projects(client: AsyncClient, auth_headers, sample_project):
 
 @pytest.mark.asyncio
 async def test_get_project_details(client: AsyncClient, auth_headers, sample_project):
-    """Test getting project details with tasks."""
+    """Test getting project details with agents."""
     response = await client.get(f"/api/projects/{sample_project['id']}", headers=auth_headers)
 
     assert response.status_code == 200
@@ -81,13 +81,13 @@ async def test_delete_project(client: AsyncClient, auth_headers, sample_project)
 
 @pytest.mark.asyncio
 async def test_create_task(client: AsyncClient, auth_headers, sample_project):
-    """Test creating a task in a project."""
+    """Test creating a agent in a project."""
     response = await client.post(
-        f"/api/projects/{sample_project['id']}/tasks",
+        f"/api/projects/{sample_project['id']}/agents",
         headers=auth_headers,
         json={
-            "title": "New Task",
-            "description": "Task description",
+            "title": "New Agent",
+            "description": "Agent description",
             "priority": 3,
             "due_date": str(date.today()),
         },
@@ -95,7 +95,7 @@ async def test_create_task(client: AsyncClient, auth_headers, sample_project):
 
     assert response.status_code == 200
     data = response.json()
-    assert data["title"] == "New Task"
+    assert data["title"] == "New Agent"
     assert data["project_id"] == sample_project["id"]
 
 

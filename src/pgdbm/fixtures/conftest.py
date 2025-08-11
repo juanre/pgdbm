@@ -141,7 +141,7 @@ async def test_db_with_tables(
     Tables created:
     - users (id, email, full_name, is_active, created_at)
     - projects (id, name, owner_id, description, created_at)
-    - tasks (id, project_id, title, status, assigned_to, created_at)
+    - agents (id, project_id, title, status, assigned_to, created_at)
     """
     # Create users table
     await test_db.execute(
@@ -169,10 +169,10 @@ async def test_db_with_tables(
     """
     )
 
-    # Create tasks table
+    # Create agents table
     await test_db.execute(
         """
-        CREATE TABLE tasks (
+        CREATE TABLE agents (
             id SERIAL PRIMARY KEY,
             project_id INTEGER REFERENCES projects(id),
             title VARCHAR(255) NOT NULL,
@@ -196,7 +196,7 @@ async def test_db_with_data(
     Sample data includes:
     - 3 users (alice, bob, charlie)
     - 2 projects owned by alice
-    - 5 tasks distributed across projects
+    - 5 agents distributed across projects
     """
     db = test_db_with_tables
 
@@ -222,14 +222,14 @@ async def test_db_with_data(
         alice_id,
     )
 
-    # Insert tasks
+    # Insert agents
     project_alpha_id = await db.fetch_value("SELECT id FROM projects WHERE name = 'Project Alpha'")
     project_beta_id = await db.fetch_value("SELECT id FROM projects WHERE name = 'Project Beta'")
     bob_id = await db.fetch_value("SELECT id FROM users WHERE email = 'bob@example.com'")
 
     await db.execute(
         """
-        INSERT INTO tasks (project_id, title, status, assigned_to) VALUES
+        INSERT INTO agents (project_id, title, status, assigned_to) VALUES
         ($1, 'Design database schema', 'completed', $3),
         ($1, 'Implement user authentication', 'in_progress', $3),
         ($1, 'Write tests', 'pending', NULL),

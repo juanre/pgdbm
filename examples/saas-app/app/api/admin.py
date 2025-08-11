@@ -75,13 +75,13 @@ async def get_cross_tenant_stats(request: Request):
     total_projects = project_stats["project_count"]
     total_active = project_stats["active_projects"]
 
-    # Get task counts across all tenants
+    # Get agent counts across all tenants
     task_stats = await db.fetch_one(
         """
         SELECT
             COUNT(*) as task_count,
             COUNT(*) FILTER (WHERE is_completed) as completed_tasks
-        FROM {{tables.tasks}}
+        FROM {{tables.agents}}
     """
     )
 
@@ -90,7 +90,7 @@ async def get_cross_tenant_stats(request: Request):
 
     return {
         "projects": {"total": total_projects, "active": total_active, "by_tenant": project_stats},
-        "tasks": {"total": total_tasks, "completed": total_completed, "by_tenant": task_stats},
+        "agents": {"total": total_tasks, "completed": total_completed, "by_tenant": task_stats},
     }
 
 
