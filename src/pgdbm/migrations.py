@@ -120,6 +120,34 @@ class AsyncMigrationManager:
         if self._debug:
             logger.debug(f"Ensured migrations table '{table_name}' exists")
 
+    async def _ensure_migrations_table_on(self, conn: Any) -> None:
+        """Create migrations tracking table using a specific connection."""
+        table_name = self.migrations_table
+        if self.db.schema:
+            table_name = f"{self.db.schema}.{self.migrations_table}"
+
+        await conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                id SERIAL PRIMARY KEY,
+                filename VARCHAR(255) NOT NULL,
+                checksum VARCHAR(64) NOT NULL,
+                module_name VARCHAR(100),
+                applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                applied_by VARCHAR(100) DEFAULT CURRENT_USER,
+                execution_time_ms INTEGER,
+                UNIQUE(filename, module_name)
+            )
+        """
+        )
+
+        await conn.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS idx_{self.migrations_table}_module
+            ON {table_name}(module_name, filename)
+        """
+        )
+
     async def get_applied_migrations(self) -> dict[str, Migration]:
         """Get list of applied migrations for this module."""
         table_name = self.migrations_table
@@ -152,6 +180,40 @@ class AsyncMigrationManager:
                 f"Found {len(migrations)} applied migrations for module '{self.module_name}'"
             )
 
+        return migrations
+
+    async def _get_applied_migrations_on(self, conn: Any) -> dict[str, Migration]:
+        """Get applied migrations using a specific connection."""
+        table_name = self.migrations_table
+        if self.db.schema:
+            table_name = f"{self.db.schema}.{self.migrations_table}"
+
+        rows = await conn.fetch(
+            f"""
+            SELECT filename, checksum, applied_at, module_name
+            FROM {table_name}
+            WHERE module_name = $1 OR module_name IS NULL
+            ORDER BY filename
+            """,
+            self.module_name,
+        )
+
+        migrations: dict[str, Migration] = {}
+        for row in rows:
+            d = dict(row)
+            migration = Migration(
+                filename=d["filename"],
+                checksum=d["checksum"],
+                content="",
+                applied_at=d["applied_at"],
+                module_name=d["module_name"],
+            )
+            migrations[d["filename"]] = migration
+
+        if self._debug:
+            logger.debug(
+                f"Found {len(migrations)} applied migrations for module '{self.module_name}' (conn)"
+            )
         return migrations
 
     def _calculate_checksum(self, content: str) -> str:
@@ -198,6 +260,46 @@ class AsyncMigrationManager:
             # Calculate execution time before recording
             execution_time_ms = int((time.time() - start_time) * 1000)
             # Ensure at least 1ms for very fast operations
+            if execution_time_ms == 0:
+                execution_time_ms = 1
+
+            await conn.execute(
+                f"""
+                INSERT INTO {table_name}
+                (filename, checksum, module_name, execution_time_ms)
+                VALUES ($1, $2, $3, $4)
+                """,
+                migration.filename,
+                migration.checksum,
+                self.module_name,
+                execution_time_ms,
+            )
+
+        logger.info(f"Applied migration '{migration.filename}' in {execution_time_ms}ms")
+        return execution_time_ms
+
+    async def _apply_migration_on(self, conn: Any, migration: Migration) -> float:
+        """Apply a single migration using a specific connection within a transaction."""
+        import time
+
+        start_time = time.time()
+
+        if self._debug:
+            logger.debug(f"Applying migration: {migration.filename}")
+            logger.debug(f"Content preview: {migration.content[:200]}...")
+
+        await self._validate_migration_syntax(migration.content, migration.filename)
+
+        table_name = self.migrations_table
+        if self.db.schema:
+            table_name = f"{self.db.schema}.{self.migrations_table}"
+
+        processed_content = self.db._prepare_query(migration.content)
+
+        async with conn.transaction():
+            await conn.execute(processed_content)
+
+            execution_time_ms = int((time.time() - start_time) * 1000)
             if execution_time_ms == 0:
                 execution_time_ms = 1
 
@@ -289,22 +391,39 @@ class AsyncMigrationManager:
         Returns:
             Dictionary with migration results
         """
-        await self.ensure_migrations_table()
-
-        # Use advisory lock to serialize migrations per module across processes
-        # Lock key derived from module_name with a namespace prefix to reduce collision risk
+        # Serialize migration application per module: use namespaced advisory lock
         lock_key_query = "SELECT pg_advisory_lock(hashtext('pgdbm_migration_' || $1))"
         unlock_query = "SELECT pg_advisory_unlock(hashtext('pgdbm_migration_' || $1))"
+        async with self.db.acquire() as conn:
+            await conn.execute(lock_key_query, self.module_name)
+            try:
+                await self._ensure_migrations_table_on(conn)
+                applied = await self._get_applied_migrations_on(conn)
+                all_migrations = await self.find_migration_files()
 
-        try:
-            await self.db.execute(lock_key_query, self.module_name)
+                pending: list[Migration] = []
+                for migration in all_migrations:
+                    if migration.filename in applied:
+                        if applied[migration.filename].checksum != migration.checksum:
+                            raise MigrationError(
+                                f"Migration '{migration.filename}' has been modified after being applied!\n"
+                                f"Expected checksum: {applied[migration.filename].checksum}\n"
+                                f"Current checksum: {migration.checksum}",
+                                migration_file=migration.filename,
+                            )
+                    else:
+                        pending.append(migration)
+            finally:
+                try:
+                    await conn.execute(unlock_query, self.module_name)
+                except Exception:
+                    pass
 
-            # Get pending migrations
-            pending = await self.get_pending_migrations()
-            applied = await self.get_applied_migrations()
-
-            if not pending:
-                logger.info("No pending migrations to apply")
+        # Apply migrations
+        applied_migrations = []
+        total_time_ms = 0.0
+        if not pending:
+            logger.info("No pending migrations to apply")
                 return {
                     "status": "up_to_date",
                     "applied": [],

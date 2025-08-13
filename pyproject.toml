@@ -33,11 +33,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/juanreyero/pgdbm"
-Documentation = "https://github.com/juanreyero/pgdbm#readme"
-Repository = "https://github.com/juanreyero/pgdbm"
-Issues = "https://github.com/juanreyero/pgdbm/issues"
-Changelog = "https://github.com/juanreyero/pgdbm/blob/main/CHANGELOG.md"
+Homepage = "https://juanreyero.com/open/pgdbm"
+Documentation = "https://github.com/juanre/pgdbm"
+Repository = "https://github.com/juanre/pgdbm"
+Issues = "https://github.com/juanre/pgdbm/issues"
+Changelog = "https://github.com/juanre/pgdbm/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]

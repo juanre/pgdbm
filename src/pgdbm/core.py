@@ -9,6 +9,7 @@ import asyncio
 import logging
 import os
 import re
+import ssl
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any, Optional, TypeVar, Union, cast
@@ -53,6 +54,38 @@ class DatabaseConfig(BaseModel):
     # Connection initialization
     server_settings: Optional[dict[str, str]] = None
     init_commands: Optional[list[str]] = None
+
+    # TLS/SSL configuration
+    ssl_enabled: bool = Field(default=False, description="Enable TLS/SSL for database connections")
+    ssl_mode: Optional[str] = Field(
+        default=None,
+        description=(
+            "SSL mode: one of 'require', 'verify-ca', 'verify-full'. "
+            "If None and ssl_enabled=True, defaults to 'verify-full'."
+        ),
+    )
+    ssl_ca_file: Optional[str] = Field(default=None, description="Path to CA certificate file")
+    ssl_cert_file: Optional[str] = Field(
+        default=None, description="Path to client certificate file"
+    )
+    ssl_key_file: Optional[str] = Field(default=None, description="Path to client private key file")
+    ssl_key_password: Optional[str] = Field(
+        default=None, description="Password for encrypted private key"
+    )
+
+    # Server-side timeout safeguards (in milliseconds). Set to None to disable.
+    statement_timeout_ms: Optional[int] = Field(
+        default=60000,
+        description="Abort any statement running longer than this duration (ms)",
+    )
+    idle_in_transaction_session_timeout_ms: Optional[int] = Field(
+        default=60000,
+        description="Abort sessions that remain idle in transaction longer than this duration (ms)",
+    )
+    lock_timeout_ms: Optional[int] = Field(
+        default=5000,
+        description="Abort attempts to acquire a lock after this duration (ms)",
+    )
 
     # Retry configuration
     retry_attempts: int = Field(default=3, description="Number of connection retry attempts")
@@ -107,7 +140,71 @@ class DatabaseConfig(BaseModel):
             settings["search_path"] = f'"{self.schema_name}", public'
         settings.setdefault("jit", "off")  # JIT can cause latency spikes
         settings.setdefault("application_name", f'{self.schema_name or "app"}_pool')
+        # Apply default timeouts if not explicitly set by caller
+        if self.statement_timeout_ms is not None:
+            settings.setdefault("statement_timeout", str(int(self.statement_timeout_ms)))
+        if self.idle_in_transaction_session_timeout_ms is not None:
+            settings.setdefault(
+                "idle_in_transaction_session_timeout",
+                str(int(self.idle_in_transaction_session_timeout_ms)),
+            )
+        if self.lock_timeout_ms is not None:
+            settings.setdefault("lock_timeout", str(int(self.lock_timeout_ms)))
         return settings
+
+    def build_ssl_context(self) -> Optional[ssl.SSLContext]:
+        """Build an SSL context based on configuration or return None if disabled.
+
+        Modes:
+          - require: encrypt traffic, do not verify server cert
+          - verify-ca: verify server cert against CA, do not verify hostname
+          - verify-full: verify server cert and hostname
+        """
+        if not self.ssl_enabled:
+            return None
+
+        mode = (self.ssl_mode or "verify-full").lower()
+        if mode not in {"require", "verify-ca", "verify-full"}:
+            raise ConfigurationError(
+                "Invalid ssl_mode. Expected one of: 'require', 'verify-ca', 'verify-full'",
+                config_field="ssl_mode",
+            )
+
+        ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+
+        if mode == "require":
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+        elif mode == "verify-ca":
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_REQUIRED
+        else:  # verify-full
+            ctx.check_hostname = True
+            ctx.verify_mode = ssl.CERT_REQUIRED
+
+        # Load CA bundle if provided
+        if self.ssl_ca_file:
+            try:
+                ctx.load_verify_locations(cafile=self.ssl_ca_file)
+            except Exception as e:
+                raise ConfigurationError(
+                    f"Failed to load CA file: {e}", config_field="ssl_ca_file"
+                ) from e
+
+        # Load client cert/key if provided (mutual TLS)
+        if self.ssl_cert_file and self.ssl_key_file:
+            try:
+                ctx.load_cert_chain(
+                    certfile=self.ssl_cert_file,
+                    keyfile=self.ssl_key_file,
+                    password=self.ssl_key_password,
+                )
+            except Exception as e:
+                raise ConfigurationError(
+                    f"Failed to load client certificate/key: {e}", config_field="ssl_cert_file"
+                ) from e
+
+        return ctx
 
 
 class AsyncDatabaseManager:
@@ -202,6 +299,7 @@ class AsyncDatabaseManager:
                     max_inactive_connection_lifetime=self.config.max_inactive_connection_lifetime,
                     command_timeout=self.config.command_timeout,
                     server_settings=server_settings,
+                    ssl=self.config.build_ssl_context(),
                     init=self._connection_init,
                 )
                 logger.info("Database connection pool created successfully")
@@ -312,6 +410,7 @@ class AsyncDatabaseManager:
                     max_inactive_connection_lifetime=config.max_inactive_connection_lifetime,
                     command_timeout=config.command_timeout,
                     server_settings=server_settings,
+                    ssl=config.build_ssl_context(),
                     init=shared_pool_init,
                 )
                 logger.info("Shared connection pool created successfully")
@@ -530,7 +629,10 @@ class AsyncDatabaseManager:
 
         # Ensure RETURNING id clause
         query = query.rstrip(";").rstrip()
-        if "RETURNING id" not in query.upper():
+        # If the query already contains a RETURNING clause (any case), don't append another
+        import re as _re
+
+        if _re.search(r"\bRETURNING\b", query, flags=_re.IGNORECASE) is None:
             query = f"{query} RETURNING id"
 
         result = await self.fetch_value(query, *args)

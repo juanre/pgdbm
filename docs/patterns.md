@@ -4,11 +4,11 @@ This guide helps you choose the right pattern for using pgdbm in your applicatio
 
 ## Overview: Three Main Patterns
 
-1. **Standalone Service** - Your service owns and manages the database
-2. **Reusable Library** - Your code is used by other applications
-3. **Shared Pool Application** - Multiple services share one database
+1. **Standalone Service (Owner)** - Module owns and manages its database connection and migrations
+2. **Reusable Library (Flexible)** - Module can own the DB or use one owned by another; always runs its migrations
+3. **Shared Pool Application (Consumer)** - Multiple modules share one database/pool with schema isolation
 
-## Pattern 1: Standalone Service
+## Pattern 1: Standalone Service (Owner)
 
 Use this when your service runs independently and owns its database.
 
@@ -64,7 +64,7 @@ class MyService:
 - Can't share resources with other services
 - Each service needs its own configuration
 
-## Pattern 2: Reusable Library
+## Pattern 2: Reusable Library (Flexible)
 
 Use this when building a library that will be used by other applications (like memory-service).
 
@@ -149,10 +149,10 @@ await library.initialize()
 
 ### Key Principles
 
-1. **Support both modes** - Accept optional db_manager parameter
-2. **Always run migrations** - Your library manages its own schema
-3. **Use {{tables.}} syntax** - Works in any schema context
-4. **Unique module_name** - Prevents migration conflicts
+1. **Support both modes** - Accept optional `db_manager` and `schema`
+2. **Always run your own migrations** - Your module owns its schema, even on a shared DB
+3. **Use `{{tables.}}` syntax** - Makes migrations/queries portable across schemas
+4. **Use a unique `module_name`** - Isolates migration history
 5. **Clean up conditionally** - Only if you created the connection
 
 ### Pros and Cons
@@ -168,7 +168,7 @@ await library.initialize()
 - Must handle both patterns
 - Requires careful cleanup logic
 
-## Pattern 3: Shared Pool Application
+## Pattern 3: Shared Pool Application (Consumer)
 
 Use this when multiple services share one database with schema isolation.
 
@@ -280,6 +280,41 @@ async def monitor_pool_health(shared_pool):
         "usage_percent": usage * 100
     }
 ```
+
+## Security and Reliability Defaults
+
+### TLS/SSL
+
+Enable TLS and enforce certificate verification for production deployments:
+
+```python
+config = DatabaseConfig(
+    connection_string="postgresql://db.example.com/app",
+    ssl_enabled=True,
+    ssl_mode="verify-full",        # 'require' | 'verify-ca' | 'verify-full'
+    ssl_ca_file="/etc/ssl/certs/ca.pem",
+)
+db = AsyncDatabaseManager(config)
+await db.connect()
+```
+
+Guidance:
+- Use `verify-full` whenever possible.
+- If you terminate TLS at a proxy, ensure the upstream to Postgres is secured and access-controlled.
+
+### Statement and Session Timeouts
+
+Prevent runaway queries and stuck transactions with server-side timeouts (milliseconds):
+
+```python
+config = DatabaseConfig(
+    statement_timeout_ms=60_000,
+    idle_in_transaction_session_timeout_ms=60_000,
+    lock_timeout_ms=5_000,
+)
+```
+
+These default to sane values; set to `None` to disable or override explicitly in `server_settings`.
 
 ### Cross-Schema Limitations
 

@@ -89,7 +89,9 @@ if __name__ == "__main__":
 
 ## Building Reusable Libraries
 
-When building a library that uses pgdbm (like memory-service), follow this pattern:
+When building a library that uses pgdbm, follow this pattern. The goal is that the same module can:
+- run standalone and own its database, or
+- run inside another app and use its database, while always owning its schema and migrations.
 
 ```python
 from pgdbm import AsyncDatabaseManager, DatabaseConfig, AsyncMigrationManager
@@ -102,7 +104,7 @@ class MyLibrary:
     def __init__(self,
                  connection_string: Optional[str] = None,
                  db_manager: Optional[AsyncDatabaseManager] = None):
-        # Support both standalone and shared pool modes
+        # Support both standalone (owner) and shared pool (consumer) modes
         if not connection_string and not db_manager:
             raise ValueError("Either connection_string or db_manager required")
 
@@ -141,7 +143,7 @@ class MyLibrary:
 
 ### Using modules together
 
-Multiple modules can share a database without conflicts:
+Multiple modules can share a database without conflicts (schema isolation + per-module migrations):
 
 ```python
 # Each module gets its own schema
@@ -159,6 +161,8 @@ blog_module = BlogModule(db_manager=blog_db)
 # Both can have a "users" table without conflict:
 # - users.users (user module's table)
 # - blog.users (blog module's table)
+
+Tip: In shared mode, each module still runs its own migrations against its schema using its own `module_name`.
 ```
 
 ## Migration Files Best Practices

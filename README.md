@@ -21,6 +21,14 @@ A PostgreSQL library for Python that provides high-level async database operatio
 - **📊 Monitoring** - Track slow queries and connection pool metrics
 - **🔒 Type Safe** - Full type hints and Pydantic integration
 
+### Design intent: dual ownership
+
+pgdbm is designed so a module can either:
+- **Own its database** when run independently (it creates a pool and runs its own migrations), or
+- **Use a database owned by another** component via a shared pool while still running its own migrations into a schema namespace.
+
+This keeps modules portable: the same code can run as a standalone service or as part of a larger app.
+
 ## Installation
 
 ```bash
@@ -72,6 +80,21 @@ user_id = await db.execute_and_return_id(
 
 # Clean up
 await db.disconnect()
+```
+
+Standalone vs shared-pool usage:
+
+```python
+# Standalone (owns the DB):
+config = DatabaseConfig(connection_string="postgresql://localhost/app", schema="users")
+db = AsyncDatabaseManager(config)
+await db.connect()
+await AsyncMigrationManager(db, "./migrations", module_name="users").apply_pending()
+
+# Shared pool (uses external DB):
+shared = await AsyncDatabaseManager.create_shared_pool(DatabaseConfig(connection_string="postgresql://localhost/app"))
+db = AsyncDatabaseManager(pool=shared, schema="users")  # Module still runs its own migrations
+await AsyncMigrationManager(db, "./migrations", module_name="users").apply_pending()
 ```
 
 ## Core Patterns
@@ -163,6 +186,36 @@ db = MonitoredAsyncDatabaseManager(
 metrics = await db.get_query_metrics()
 slow_queries = await db.get_slow_queries(limit=10)
 ```
+
+### 6. Production TLS and Timeouts
+
+Enable TLS with certificate verification and enforce server-side timeouts:
+
+```python
+from pgdbm import AsyncDatabaseManager, DatabaseConfig
+
+config = DatabaseConfig(
+    connection_string="postgresql://db.example.com/app",
+    ssl_enabled=True,
+    ssl_mode="verify-full",           # 'require' | 'verify-ca' | 'verify-full'
+    ssl_ca_file="/etc/ssl/certs/ca.pem",
+    # Optional mutual TLS:
+    # ssl_cert_file="/etc/ssl/certs/client.crt",
+    # ssl_key_file="/etc/ssl/private/client.key",
+
+    # Sensible timeouts (ms)
+    statement_timeout_ms=60_000,
+    idle_in_transaction_session_timeout_ms=60_000,
+    lock_timeout_ms=5_000,
+)
+
+db = AsyncDatabaseManager(config)
+await db.connect()
+```
+
+Notes:
+- Use `verify-full` for strict hostname and certificate validation in production.
+- Timeouts are applied via `server_settings`; you can override or disable by passing None.
 
 ## Examples
 

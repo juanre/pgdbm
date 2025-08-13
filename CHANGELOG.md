@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- TLS/SSL support in `DatabaseConfig` with `ssl_enabled`, `ssl_mode`, CA/cert/key options
+- Server-side timeouts in `DatabaseConfig` (`statement_timeout_ms`, `idle_in_transaction_session_timeout_ms`, `lock_timeout_ms`)
+- Advisory locking in migrations to serialize runners per `module_name`
 - Migration version extraction from filenames
   - Supports numeric prefix (001_), Flyway style (V1__), and timestamp patterns
   - Automatic version property on Migration model
@@ -18,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - ConfigurationError, PoolError, QueryError, MigrationError, etc.
   - Enhanced error messages with troubleshooting tips
   - Better debugging experience
+- `execute_and_return_id` now correctly detects existing RETURNING clauses to avoid duplication
 - **BREAKING**: Minimum Python version raised to 3.9
   - Python 3.8 reached EOL in October 2024
   - Allows use of modern type annotations and features
