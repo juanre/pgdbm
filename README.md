@@ -233,6 +233,24 @@ The `examples/` directory contains applications:
 - [API Reference](docs/api-reference.md) - Complete API documentation
 - [Testing Guide](docs/testing.md) - Testing best practices
 
+## Contributing
+
+Short version:
+
+- Requirements: Python 3.9+, PostgreSQL 12+, uv (or pip)
+- Setup:
+  - uv: `uv sync`
+  - pip: `pip install -e ".[dev]"`
+  - hooks: `pre-commit install`
+- Run tests: `pytest`
+- Lint/type-check: `pre-commit run --all-files`
+
+Notes:
+
+- Integration tests use ephemeral databases; you can override with env vars like `TEST_DB_HOST`, `TEST_DB_PORT`, `TEST_DB_USER`, `TEST_DB_PASSWORD`.
+- Keep PRs small and focused, include tests/docs for user-visible changes.
+- Style is enforced via Black/Isort/Ruff/Mypy; run pre-commit locally before pushing.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
