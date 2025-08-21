@@ -37,11 +37,33 @@ uv add pgdbm
 
 # Or using pip
 pip install pgdbm
+
+# Install with CLI support (optional)
+pip install pgdbm[cli]
 ```
 
 ## Quick Start
 
-### 1. Create a migration file
+### Using the CLI (Recommended)
+
+```bash
+# Generate configuration
+pgdbm generate config
+
+# Create database
+pgdbm db create
+
+# Create and apply migrations
+pgdbm migrate create initial_schema
+pgdbm migrate apply
+
+# Start development
+pgdbm dev start
+```
+
+### Manual Setup
+
+#### 1. Create a migration file
 
 ```sql
 -- migrations/001_initial.sql
@@ -52,7 +74,7 @@ CREATE TABLE IF NOT EXISTS {{tables.users}} (
 );
 ```
 
-### 2. Use pgdbm
+#### 2. Use pgdbm
 
 ```python
 from pgdbm import AsyncDatabaseManager, DatabaseConfig, AsyncMigrationManager
@@ -228,7 +250,8 @@ The `examples/` directory contains applications:
 ## Documentation
 
 - [Quickstart Guide](docs/quickstart.md) - Get started
-- [Patterns Guide](docs/patterns.md) - Deployment patterns, schema isolation, and framework integration
+- [CLI Reference](docs/cli.md) - Command-line interface documentation
+- [Patterns Guide](docs/patterns.md) - Deployment patterns, dual-mode libraries, and framework integration
 - [Migration Guide](docs/migrations.md) - Schema versioning and {{tables.}} syntax
 - [API Reference](docs/api-reference.md) - Complete API documentation
 - [Testing Guide](docs/testing.md) - Testing best practices

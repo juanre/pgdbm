@@ -39,6 +39,15 @@ Repository = "https://github.com/juanre/pgdbm"
 Issues = "https://github.com/juanre/pgdbm/issues"
 Changelog = "https://github.com/juanre/pgdbm/blob/main/CHANGELOG.md"
 
+[project.optional-dependencies]
+cli = [
+    "click>=8.0.0",
+    "tomli>=2.0.0 ; python_full_version < '3.11'",
+]
+
+[project.scripts]
+pgdbm = "pgdbm.cli.main:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
