@@ -148,7 +148,34 @@ user_db = AsyncDatabaseManager(pool=shared_pool, schema="users")
 billing_db = AsyncDatabaseManager(pool=shared_pool, schema="billing")
 ```
 
-### 4. Testing Support
+### 4. Transactions with Template Substitution
+
+Transactions automatically handle `{{tables.}}` template substitution:
+
+```python
+async with db.transaction() as tx:
+    # Create a user
+    user_id = await tx.fetch_value(
+        "INSERT INTO {{tables.users}} (email) VALUES ($1) RETURNING id",
+        "alice@example.com"
+    )
+
+    # Create user profile in same transaction
+    await tx.execute(
+        "INSERT INTO {{tables.profiles}} (user_id, bio) VALUES ($1, $2)",
+        user_id,
+        "Software developer"
+    )
+    # Automatically committed on success, rolled back on exception
+```
+
+All transaction methods return dictionaries for consistency:
+- `tx.execute()` - Execute without results
+- `tx.fetch_one()` - Get single row as dict
+- `tx.fetch_all()` - Get all rows as list of dicts
+- `tx.fetch_value()` - Get single value
+
+### 5. Testing Support
 
 Built-in fixtures for database tests:
 
@@ -170,7 +197,7 @@ async def test_create_user(test_db):
     assert user_id == 1
 ```
 
-### 5. Monitoring
+### 6. Monitoring
 
 Track database performance:
 
@@ -187,7 +214,7 @@ metrics = await db.get_query_metrics()
 slow_queries = await db.get_slow_queries(limit=10)
 ```
 
-### 6. Production TLS and Timeouts
+### 7. Production TLS and Timeouts
 
 Enable TLS with certificate verification and enforce server-side timeouts:
 

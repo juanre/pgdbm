@@ -166,9 +166,9 @@ class TestMonitoringFeatures:
 
         # Start two transactions to create a blocking situation
         async def blocking_transaction():
-            async with test_db.transaction() as conn:
+            async with test_db.transaction() as tx:
                 # Lock the row
-                await conn.execute("UPDATE lock_test SET value = 'blocking' WHERE id = 1")
+                await tx.execute("UPDATE lock_test SET value = 'blocking' WHERE id = 1")
                 # Hold the lock for a bit
                 await asyncio.sleep(0.5)
 
@@ -176,9 +176,9 @@ class TestMonitoringFeatures:
             # Wait a bit for the first transaction to acquire lock
             await asyncio.sleep(0.1)
             try:
-                async with test_db.transaction() as conn:
+                async with test_db.transaction() as tx:
                     # This should be blocked
-                    await conn.execute("UPDATE lock_test SET value = 'blocked' WHERE id = 1")
+                    await tx.execute("UPDATE lock_test SET value = 'blocked' WHERE id = 1")
             except asyncio.TimeoutError:
                 pass  # Expected in test
 

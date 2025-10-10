@@ -155,15 +155,15 @@ async def test_transaction_commit(sample_tables):
     db = sample_tables
 
     # Use transaction context
-    async with db.transaction() as conn:
-        await conn.execute(
+    async with db.transaction() as tx:
+        await tx.execute(
             "INSERT INTO users (email, full_name) VALUES ($1, $2)",
             "transaction@example.com",
             "Transaction User",
         )
 
         # Query within transaction should see the new row
-        result = await conn.fetchrow(
+        result = await tx.fetch_one(
             "SELECT * FROM users WHERE email = $1", "transaction@example.com"
         )
         assert result is not None
@@ -183,15 +183,15 @@ async def test_transaction_rollback(sample_tables):
 
     # Use transaction context with intentional error
     with pytest.raises(asyncpg.UndefinedTableError):
-        async with db.transaction() as conn:
-            await conn.execute(
+        async with db.transaction() as tx:
+            await tx.execute(
                 "INSERT INTO users (email, full_name) VALUES ($1, $2)",
                 "rollback@example.com",
                 "Rollback User",
             )
 
             # Force a database error by querying non-existent table
-            await conn.execute("SELECT * FROM non_existent_table")
+            await tx.execute("SELECT * FROM non_existent_table")
 
     # After rollback, row should not exist
     user = await db.fetch_one("SELECT * FROM users WHERE email = $1", "rollback@example.com")

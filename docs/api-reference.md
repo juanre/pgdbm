@@ -7,6 +7,7 @@ This document provides a complete reference for all public APIs in pgdbm.
 - [Core Classes](#core-classes)
   - [DatabaseConfig](#databaseconfig)
   - [AsyncDatabaseManager](#asyncdatabasemanager)
+  - [TransactionManager](#transactionmanager)
 - [Migration Management](#migration-management)
   - [AsyncMigrationManager](#asyncmigrationmanager)
   - [Migration](#migration)
@@ -209,21 +210,21 @@ user_id = await db.execute_and_return_id(
 
 #### Transactions
 
-##### @asynccontextmanager async transaction() -> AsyncIterator[Connection]
-Execute queries in a transaction context.
+##### @asynccontextmanager async transaction() -> AsyncIterator[TransactionManager]
+Execute queries in a transaction context with automatic template substitution.
 
 ```python
-async with db.transaction() as conn:
-    user_id = await conn.fetchval(
-        "INSERT INTO users (email) VALUES ($1) RETURNING id",
+async with db.transaction() as tx:
+    user_id = await tx.fetch_value(
+        "INSERT INTO {{tables.users}} (email) VALUES ($1) RETURNING id",
         "alice@example.com"
     )
-    await conn.execute(
-        "INSERT INTO user_profiles (user_id, bio) VALUES ($1, $2)",
+    await tx.execute(
+        "INSERT INTO {{tables.user_profiles}} (user_id, bio) VALUES ($1, $2)",
         user_id,
         "Software developer"
     )
-    # Automatically committed on success, rolled back on exception
+    # Template substitution automatic, committed on success, rolled back on exception
 ```
 
 ##### @asynccontextmanager async acquire() -> AsyncIterator[Connection]
@@ -311,6 +312,97 @@ stats = await db.get_pool_stats()
 print(f"Pool size: {stats['size']}")
 print(f"Free connections: {stats['free_size']}")
 print(f"Used connections: {stats['used_size']}")
+```
+
+##### prepare_query(query: str) -> str
+Prepare a query by applying template substitution for `{{tables.}}` and `{{schema}}` placeholders.
+
+```python
+# Manually prepare a query (rarely needed - transactions do this automatically)
+prepared = db.prepare_query("SELECT * FROM {{tables.users}}")
+# With schema="myapp": "SELECT * FROM \"myapp\".users"
+```
+
+### TransactionManager
+
+Wrapper for database connections within transactions that automatically handles template substitution.
+
+**Important**: You don't create TransactionManager instances directly. They are returned by `AsyncDatabaseManager.transaction()`.
+
+```python
+async with db.transaction() as tx:
+    # tx is a TransactionManager instance
+    await tx.execute("INSERT INTO {{tables.users}} (email) VALUES ($1)", email)
+```
+
+#### Methods
+
+All methods automatically apply `{{tables.}}` and `{{schema}}` template substitution.
+
+##### async execute(query: str, *args: Any, timeout: Optional[float] = None) -> str
+Execute a query without returning results.
+
+```python
+async with db.transaction() as tx:
+    await tx.execute(
+        "INSERT INTO {{tables.users}} (email, name) VALUES ($1, $2)",
+        "alice@example.com",
+        "Alice"
+    )
+```
+
+##### async fetch_one(query: str, *args: Any, timeout: Optional[float] = None) -> Optional[dict[str, Any]]
+Fetch a single row as a dictionary.
+
+```python
+async with db.transaction() as tx:
+    user = await tx.fetch_one(
+        "SELECT * FROM {{tables.users}} WHERE email = $1",
+        "alice@example.com"
+    )
+    if user:
+        print(f"Found: {user['name']}")
+```
+
+##### async fetch_all(query: str, *args: Any, timeout: Optional[float] = None) -> list[dict[str, Any]]
+Fetch all rows as a list of dictionaries.
+
+```python
+async with db.transaction() as tx:
+    users = await tx.fetch_all(
+        "SELECT * FROM {{tables.users}} WHERE active = true"
+    )
+    for user in users:
+        print(user['email'])
+```
+
+##### async fetch_value(query: str, *args: Any, column: int = 0, timeout: Optional[float] = None) -> Any
+Fetch a single value from the first row.
+
+```python
+async with db.transaction() as tx:
+    count = await tx.fetch_value(
+        "SELECT COUNT(*) FROM {{tables.users}}"
+    )
+    print(f"Total users: {count}")
+```
+
+#### Usage Notes
+
+1. **Template Substitution**: All queries are automatically processed for `{{tables.}}` and `{{schema}}` placeholders
+2. **Consistent API**: Same method names and return types as `AsyncDatabaseManager`
+3. **Automatic Commit/Rollback**: Transaction commits on success, rolls back on exception
+4. **Nested Transactions**: Use savepoints for nested transaction support
+
+```python
+async with db.transaction() as tx:
+    # Outer transaction
+    await tx.execute("INSERT INTO {{tables.orders}} (...) VALUES (...)")
+
+    # Nested transaction (savepoint)
+    async with tx._conn.transaction():
+        await tx.execute("INSERT INTO {{tables.order_items}} (...) VALUES (...)")
+        # If this fails, only the nested transaction rolls back
 ```
 
 ## Migration Management

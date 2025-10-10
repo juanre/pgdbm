@@ -24,6 +24,88 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 
+class TransactionManager:
+    """Wrapper for asyncpg connections that handles template substitution in transactions.
+
+    This class wraps an asyncpg connection and automatically applies schema/table
+    template substitution to all queries executed within a transaction context.
+
+    Uses the same naming conventions as AsyncDatabaseManager for consistency.
+    """
+
+    def __init__(
+        self,
+        conn: Union[asyncpg.Connection, asyncpg.pool.PoolConnectionProxy],
+        db_manager: "AsyncDatabaseManager",
+    ):
+        """Initialize transaction manager.
+
+        Args:
+            conn: The asyncpg connection to wrap
+            db_manager: The database manager for accessing prepare_query
+        """
+        self._conn = conn
+        self._db = db_manager
+
+    async def execute(self, query: str, *args: Any, timeout: Optional[float] = None) -> str:
+        """Execute a query within the transaction.
+
+        Automatically applies {{tables.}} and {{schema}} template substitution.
+        """
+        query = self._db.prepare_query(query)
+        if timeout is not None:
+            return await self._conn.execute(query, *args, timeout=timeout)
+        return await self._conn.execute(query, *args)
+
+    async def executemany(self, query: str, args: list[tuple]) -> None:
+        """Execute a query with multiple parameter sets within the transaction."""
+        query = self._db.prepare_query(query)
+        await self._conn.executemany(query, args)
+
+    async def fetch_all(
+        self, query: str, *args: Any, timeout: Optional[float] = None
+    ) -> list[dict[str, Any]]:
+        """Fetch all rows as a list of dictionaries within the transaction."""
+        query = self._db.prepare_query(query)
+        if timeout is not None:
+            rows = await self._conn.fetch(query, *args, timeout=timeout)
+        else:
+            rows = await self._conn.fetch(query, *args)
+        return [dict(row) for row in rows]
+
+    async def fetch_one(
+        self, query: str, *args: Any, timeout: Optional[float] = None
+    ) -> Optional[dict[str, Any]]:
+        """Fetch a single row as a dictionary within the transaction."""
+        query = self._db.prepare_query(query)
+        if timeout is not None:
+            row = await self._conn.fetchrow(query, *args, timeout=timeout)
+        else:
+            row = await self._conn.fetchrow(query, *args)
+        return dict(row) if row else None
+
+    async def fetch_value(
+        self, query: str, *args: Any, column: int = 0, timeout: Optional[float] = None
+    ) -> Any:
+        """Fetch a single value within the transaction."""
+        query = self._db.prepare_query(query)
+        if timeout is not None:
+            return await self._conn.fetchval(query, *args, column=column, timeout=timeout)
+        return await self._conn.fetchval(query, *args, column=column)
+
+    def transaction(self) -> Any:
+        """Create a nested transaction (savepoint).
+
+        Returns the underlying connection's transaction context manager.
+        """
+        return self._conn.transaction()
+
+    @property
+    def connection(self) -> Union[asyncpg.Connection, asyncpg.pool.PoolConnectionProxy]:
+        """Access the underlying connection for advanced use cases."""
+        return self._conn
+
+
 class DatabaseConfig(BaseModel):
     """Configuration for async database connections."""
 
@@ -436,7 +518,7 @@ class AsyncDatabaseManager:
         # This should never be reached due to the raise in the last attempt
         raise ConnectionError("Unexpected error in create_shared_pool")
 
-    def _prepare_query(self, query: str) -> str:
+    def prepare_query(self, query: str) -> str:
         """
         Prepare query with schema qualification.
 
@@ -445,6 +527,18 @@ class AsyncDatabaseManager:
         - {{tables.tablename}} - replaced with schema.tablename
 
         Security: Schema and table names are validated to prevent SQL injection.
+
+        This is a public method that can be used when you need to manually prepare
+        queries for use with transaction connections or other advanced scenarios.
+
+        Example:
+            async with db.transaction() as tx:
+                # tx automatically applies prepare_query()
+                await tx.execute("INSERT INTO {{tables.users}} (email) VALUES ($1)", email)
+
+                # Or prepare manually if needed:
+                query = db.prepare_query("SELECT * FROM {{tables.users}}")
+                await tx.connection.execute(query)
         """
         # Validate schema name if provided
         if self.schema:
@@ -471,6 +565,10 @@ class AsyncDatabaseManager:
             query = re.sub(r"{{tables\.([a-zA-Z0-9_]+)}}", f"{quoted_schema}.\\1", query)
 
         return query
+
+    def _prepare_query(self, query: str) -> str:
+        """Backward compatibility alias for prepare_query()."""
+        return self.prepare_query(query)
 
     def _mask_sensitive_args(self, args: tuple) -> tuple:
         """Mask potentially sensitive arguments for logging."""
@@ -510,22 +608,33 @@ class AsyncDatabaseManager:
                     logger.debug(f"Released connection {id(connection)}")
 
     @asynccontextmanager
-    async def transaction(
-        self,
-    ) -> AsyncIterator[Union[asyncpg.Connection, asyncpg.pool.PoolConnectionProxy]]:
+    async def transaction(self) -> AsyncIterator[TransactionManager]:
         """
-        Execute queries in a transaction.
+        Execute queries in a transaction with automatic template substitution.
+
+        Returns a TransactionManager that wraps the connection and automatically
+        applies {{tables.}} and {{schema}} template substitution to all queries.
 
         Usage:
-            async with db.transaction() as conn:
-                await conn.execute(...)
-                await conn.execute(...)  # All or nothing
+            async with db.transaction() as tx:
+                # Template substitution is automatic
+                await tx.execute("INSERT INTO {{tables.users}} (email) VALUES ($1)", email)
+                user = await tx.fetch_one("SELECT * FROM {{tables.users}} WHERE email = $1", email)
+
+                # For nested transactions (savepoints):
+                async with tx.transaction():
+                    await tx.execute("UPDATE {{tables.users}} SET active = true")
+
+        For advanced use cases where you need the raw connection:
+            async with db.transaction() as tx:
+                raw_conn = tx.connection
+                await raw_conn.execute(db.prepare_query("SELECT * FROM {{tables.users}}"))
         """
         async with self.acquire() as conn:
             if self._debug:
                 logger.debug("Starting transaction")
             async with conn.transaction():
-                yield conn
+                yield TransactionManager(conn, self)
             if self._debug:
                 logger.debug("Transaction completed")
 

@@ -123,18 +123,21 @@ class InventoryDatabase(ServiceDatabase):
         """Reserve stock for an order."""
         expires_at = datetime.utcnow() + timedelta(minutes=expiration_minutes)
 
-        async with await self.transaction():
+        async with await self.transaction() as tx:
             # Check available stock
-            product = await self.get_product(product_id)
-            if not product:
+            product_row = await tx.fetch_one(
+                "SELECT * FROM {{tables.products}} WHERE id = $1", product_id
+            )
+            if not product_row:
                 return None
 
+            product = Product(**product_row)
             available = product.stock_quantity - product.reserved_quantity
             if available < quantity:
                 return None
 
             # Create reservation
-            reservation_result = await self.fetch_one(
+            reservation_result = await tx.fetch_one(
                 """
                 INSERT INTO {{tables.stock_reservations}} (
                     product_id, order_id, quantity, expires_at
@@ -149,7 +152,7 @@ class InventoryDatabase(ServiceDatabase):
             )
 
             # Update reserved quantity
-            await self.execute(
+            await tx.execute(
                 """
                 UPDATE {{tables.products}}
                 SET reserved_quantity = reserved_quantity + $2
@@ -163,9 +166,9 @@ class InventoryDatabase(ServiceDatabase):
 
     async def confirm_reservation(self, reservation_id: UUID) -> bool:
         """Confirm a stock reservation."""
-        async with await self.transaction():
+        async with await self.transaction() as tx:
             # Get reservation
-            reservation = await self.fetch_one(
+            reservation = await tx.fetch_one(
                 "SELECT * FROM {{tables.stock_reservations}} WHERE id = $1 AND NOT is_confirmed",
                 reservation_id,
             )
@@ -174,7 +177,7 @@ class InventoryDatabase(ServiceDatabase):
                 return False
 
             # Mark as confirmed
-            await self.execute(
+            await tx.execute(
                 """
                 UPDATE {{tables.stock_reservations}}
                 SET is_confirmed = TRUE
@@ -184,7 +187,7 @@ class InventoryDatabase(ServiceDatabase):
             )
 
             # Reduce actual stock
-            await self.execute(
+            await tx.execute(
                 """
                 UPDATE {{tables.products}}
                 SET stock_quantity = stock_quantity - $2,
@@ -199,9 +202,9 @@ class InventoryDatabase(ServiceDatabase):
 
     async def release_reservation(self, order_id: UUID, product_id: UUID) -> bool:
         """Release stock reservation."""
-        async with await self.transaction():
+        async with await self.transaction() as tx:
             # Get reservation
-            reservation = await self.fetch_one(
+            reservation = await tx.fetch_one(
                 """
                 SELECT * FROM {{tables.stock_reservations}}
                 WHERE order_id = $1 AND product_id = $2 AND NOT is_confirmed
@@ -214,7 +217,7 @@ class InventoryDatabase(ServiceDatabase):
                 return False
 
             # Delete reservation
-            await self.execute(
+            await tx.execute(
                 """
                 DELETE FROM {{tables.stock_reservations}}
                 WHERE order_id = $1 AND product_id = $2 AND NOT is_confirmed
@@ -224,7 +227,7 @@ class InventoryDatabase(ServiceDatabase):
             )
 
             # Update reserved quantity
-            await self.execute(
+            await tx.execute(
                 """
                 UPDATE {{tables.products}}
                 SET reserved_quantity = reserved_quantity - $2

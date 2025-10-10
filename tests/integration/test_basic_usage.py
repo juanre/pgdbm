@@ -167,16 +167,16 @@ class TestBasicDatabaseOperations:
         )
 
         # Perform transfer in transaction
-        async with test_db.transaction():
+        async with test_db.transaction() as tx:
             # Deduct from Alice
-            await test_db.execute(
+            await tx.execute(
                 "UPDATE accounts SET balance = balance - $1 WHERE name = $2",
                 100,
                 "Alice",
             )
 
             # Add to Bob
-            await test_db.execute(
+            await tx.execute(
                 "UPDATE accounts SET balance = balance + $1 WHERE name = $2", 100, "Bob"
             )
 
@@ -208,16 +208,16 @@ class TestBasicDatabaseOperations:
 
         # Try transaction that will fail
         with pytest.raises(asyncpg.CheckViolationError):
-            async with test_db.transaction() as conn:
+            async with test_db.transaction() as tx:
                 # This will succeed
-                await conn.execute(
+                await tx.execute(
                     "UPDATE inventory SET quantity = quantity - $1 WHERE item = $2",
                     5,
                     "Widget",
                 )
 
                 # This will fail due to CHECK constraint
-                await conn.execute(
+                await tx.execute(
                     "UPDATE inventory SET quantity = quantity - $1 WHERE item = $2",
                     20,
                     "Widget",  # Would make quantity negative
@@ -454,3 +454,205 @@ class TestAdvancedFeatures:
         # Check pool stats - should reuse connections
         final_stats = await test_db.get_pool_stats()
         assert final_stats["size"] <= final_stats["max_size"]
+
+
+class TestTransactionManager:
+    """Test the TransactionManager wrapper with template substitution."""
+
+    @pytest.mark.asyncio
+    async def test_transaction_with_templates(self, test_db_with_schema):
+        """Test that transactions properly handle {{tables.}} template substitution."""
+        # Create table using templates
+        await test_db_with_schema.execute(
+            """
+            CREATE TABLE {{tables.users}} (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                balance DECIMAL(10, 2) DEFAULT 0
+            )
+            """
+        )
+
+        # Insert test data
+        await test_db_with_schema.execute(
+            """
+            INSERT INTO {{tables.users}} (email, balance) VALUES
+            ('alice@example.com', 1000),
+            ('bob@example.com', 500)
+            """
+        )
+
+        # Perform transaction with template substitution
+        async with test_db_with_schema.transaction() as tx:
+            # Deduct from Alice
+            await tx.execute(
+                "UPDATE {{tables.users}} SET balance = balance - $1 WHERE email = $2",
+                100,
+                "alice@example.com",
+            )
+
+            # Add to Bob
+            await tx.execute(
+                "UPDATE {{tables.users}} SET balance = balance + $1 WHERE email = $2",
+                100,
+                "bob@example.com",
+            )
+
+        # Verify transaction completed
+        alice = await test_db_with_schema.fetch_one(
+            "SELECT balance FROM {{tables.users}} WHERE email = $1", "alice@example.com"
+        )
+        bob = await test_db_with_schema.fetch_one(
+            "SELECT balance FROM {{tables.users}} WHERE email = $1", "bob@example.com"
+        )
+
+        assert float(alice["balance"]) == 900
+        assert float(bob["balance"]) == 600
+
+    @pytest.mark.asyncio
+    async def test_transaction_fetch_methods(self, test_db_with_schema):
+        """Test all fetch methods in TransactionManager."""
+        # Create table
+        await test_db_with_schema.execute(
+            """
+            CREATE TABLE {{tables.products}} (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                price DECIMAL(10, 2) NOT NULL,
+                stock INTEGER DEFAULT 0
+            )
+            """
+        )
+
+        # Insert test data in a transaction
+        async with test_db_with_schema.transaction() as tx:
+            # Test execute
+            await tx.execute(
+                """
+                INSERT INTO {{tables.products}} (name, price, stock) VALUES
+                ('Product A', 10.00, 100),
+                ('Product B', 20.00, 50),
+                ('Product C', 30.00, 25)
+                """
+            )
+
+            # Test fetch_one
+            product = await tx.fetch_one(
+                "SELECT * FROM {{tables.products}} WHERE name = $1", "Product A"
+            )
+            assert product is not None
+            assert product["name"] == "Product A"
+            assert float(product["price"]) == 10.00
+
+            # Test fetch_all
+            all_products = await tx.fetch_all("SELECT * FROM {{tables.products}} ORDER BY name")
+            assert len(all_products) == 3
+            assert all_products[0]["name"] == "Product A"
+            assert all_products[1]["name"] == "Product B"
+            assert all_products[2]["name"] == "Product C"
+
+            # Test fetch_value
+            count = await tx.fetch_value("SELECT COUNT(*) FROM {{tables.products}}")
+            assert count == 3
+
+            total_stock = await tx.fetch_value(
+                "SELECT SUM(stock) FROM {{tables.products}}", column=0
+            )
+            assert total_stock == 175
+
+    @pytest.mark.asyncio
+    async def test_transaction_rollback_with_templates(self, test_db_with_schema):
+        """Test transaction rollback works with template substitution."""
+        # Create table
+        await test_db_with_schema.execute(
+            """
+            CREATE TABLE {{tables.orders}} (
+                id SERIAL PRIMARY KEY,
+                order_number VARCHAR(50) UNIQUE NOT NULL,
+                total DECIMAL(10, 2) CHECK (total >= 0)
+            )
+            """
+        )
+
+        # Insert initial order
+        await test_db_with_schema.execute(
+            "INSERT INTO {{tables.orders}} (order_number, total) VALUES ($1, $2)",
+            "ORD-001",
+            100.00,
+        )
+
+        # Try transaction that will fail
+        with pytest.raises(asyncpg.CheckViolationError):
+            async with test_db_with_schema.transaction() as tx:
+                # This will succeed
+                await tx.execute(
+                    "UPDATE {{tables.orders}} SET total = $1 WHERE order_number = $2",
+                    50.00,
+                    "ORD-001",
+                )
+
+                # This will fail due to CHECK constraint
+                await tx.execute(
+                    "UPDATE {{tables.orders}} SET total = $1 WHERE order_number = $2",
+                    -10.00,  # Negative value violates CHECK
+                    "ORD-001",
+                )
+
+        # Verify rollback - total should still be 100
+        result = await test_db_with_schema.fetch_one(
+            "SELECT total FROM {{tables.orders}} WHERE order_number = $1", "ORD-001"
+        )
+        assert float(result["total"]) == 100.00
+
+    @pytest.mark.asyncio
+    async def test_nested_transactions(self, test_db_with_schema):
+        """Test nested transactions (savepoints) with templates."""
+        # Create table
+        await test_db_with_schema.execute(
+            """
+            CREATE TABLE {{tables.accounts}} (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                balance DECIMAL(10, 2) DEFAULT 0
+            )
+            """
+        )
+
+        # Insert test data
+        await test_db_with_schema.execute(
+            "INSERT INTO {{tables.accounts}} (name, balance) VALUES ($1, $2)", "Alice", 1000
+        )
+
+        # Outer transaction
+        async with test_db_with_schema.transaction() as tx:
+            await tx.execute(
+                "UPDATE {{tables.accounts}} SET balance = balance - $1 WHERE name = $2",
+                100,
+                "Alice",
+            )
+
+            # Nested transaction (savepoint)
+            try:
+                async with tx.transaction():
+                    await tx.execute(
+                        "UPDATE {{tables.accounts}} SET balance = balance - $1 WHERE name = $2",
+                        200,
+                        "Alice",
+                    )
+                    # Force an error to rollback savepoint
+                    raise ValueError("Intentional error")
+            except ValueError:
+                pass  # Savepoint rolled back
+
+            # The outer transaction continues
+            await tx.execute(
+                "UPDATE {{tables.accounts}} SET balance = balance - $1 WHERE name = $2",
+                50,
+                "Alice",
+            )
+
+        # Verify: 1000 - 100 - 50 = 850 (the 200 was rolled back)
+        result = await test_db_with_schema.fetch_one(
+            "SELECT balance FROM {{tables.accounts}} WHERE name = $1", "Alice"
+        )
+        assert float(result["balance"]) == 850

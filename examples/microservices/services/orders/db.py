@@ -21,9 +21,9 @@ class OrderDatabase(ServiceDatabase):
         """Create a new order."""
         order_number = f"ORD-{datetime.utcnow().strftime('%Y%m%d')}-{uuid4().hex[:8].upper()}"
 
-        async with await self.transaction():
+        async with await self.transaction() as tx:
             # Create order
-            order_result = await self.fetch_one(
+            order_result = await tx.fetch_one(
                 """
                 INSERT INTO {{tables.orders}} (
                     user_id, order_number, status, total_amount, shipping_address
@@ -45,7 +45,7 @@ class OrderDatabase(ServiceDatabase):
 
             # Create order items
             for item in order_data.items:
-                await self.execute(
+                await tx.execute(
                     """
                     INSERT INTO {{tables.order_items}} (
                         order_id, product_id, quantity, unit_price, total_price
@@ -143,11 +143,11 @@ class OrderDatabase(ServiceDatabase):
         self, order_id: UUID, item_prices: dict[UUID, dict[str, Decimal]]
     ) -> None:
         """Update order items with actual pricing."""
-        async with await self.transaction():
+        async with await self.transaction() as tx:
             total_amount = Decimal("0")
 
             for product_id, prices in item_prices.items():
-                await self.execute(
+                await tx.execute(
                     """
                     UPDATE {{tables.order_items}}
                     SET unit_price = $3, total_price = $4
@@ -162,7 +162,7 @@ class OrderDatabase(ServiceDatabase):
                 total_amount += prices["total_price"]
 
             # Update order total
-            await self.execute(
+            await tx.execute(
                 """
                 UPDATE {{tables.orders}}
                 SET total_amount = $2

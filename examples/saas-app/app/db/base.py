@@ -61,12 +61,12 @@ class BaseDatabase:
 
     @asynccontextmanager
     async def transaction(self):
-        """Transaction context manager."""
+        """Transaction context manager with automatic template substitution."""
         if not self.db:
             raise AsyncDBError("Database not initialized")
 
-        async with self.db.transaction() as conn:
-            yield conn
+        async with self.db.transaction() as tx:
+            yield tx
 
     # Row-level multi-tenancy doesn't need schema management methods
     # All tenants share the same tables with tenant_id isolation

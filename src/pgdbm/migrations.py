@@ -252,10 +252,9 @@ class AsyncMigrationManager:
         if self.db.schema:
             table_name = f"{self.db.schema}.{self.migrations_table}"
 
-        async with self.db.transaction() as conn:
-            # Execute migration - process placeholders first
-            processed_content = self.db._prepare_query(migration.content)
-            await conn.execute(processed_content)
+        async with self.db.transaction() as tx:
+            # Execute migration - TransactionManager automatically processes {{tables.}} placeholders
+            await tx.execute(migration.content)
 
             # Calculate execution time before recording
             execution_time_ms = int((time.time() - start_time) * 1000)
@@ -263,7 +262,7 @@ class AsyncMigrationManager:
             if execution_time_ms == 0:
                 execution_time_ms = 1
 
-            await conn.execute(
+            await tx.execute(
                 f"""
                 INSERT INTO {table_name}
                 (filename, checksum, module_name, execution_time_ms)
@@ -294,7 +293,8 @@ class AsyncMigrationManager:
         if self.db.schema:
             table_name = f"{self.db.schema}.{self.migrations_table}"
 
-        processed_content = self.db._prepare_query(migration.content)
+        # This method receives a raw connection, so we need to manually prepare the query
+        processed_content = self.db.prepare_query(migration.content)
 
         async with conn.transaction():
             await conn.execute(processed_content)

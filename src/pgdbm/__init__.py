@@ -6,7 +6,7 @@ Async-first database utilities for PostgreSQL with connection pooling, migration
 """
 
 from pgdbm.__version__ import __author__, __author_email__, __license__, __version__
-from pgdbm.core import AsyncDatabaseManager, DatabaseConfig, SchemaManager
+from pgdbm.core import AsyncDatabaseManager, DatabaseConfig, SchemaManager, TransactionManager
 from pgdbm.errors import (
     AsyncDBError,
     ConfigurationError,
@@ -41,6 +41,7 @@ __all__ = [
     "AsyncDatabaseManager",
     "DatabaseConfig",
     "SchemaManager",
+    "TransactionManager",
     # Migrations
     "AsyncMigrationManager",
     "Migration",
