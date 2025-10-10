@@ -110,9 +110,12 @@ class QueryError(AsyncDBError):
         params: Optional[tuple] = None,
         original_error: Optional[Exception] = None,
     ):
+        # Mask potentially sensitive parameters in error messages
+        masked_params = self._mask_params(params) if params else None
+
         details = {
             "query": query,
-            "params": params,
+            "params": masked_params,  # Store masked version
             "original_error": str(original_error) if original_error else None,
         }
         full_message = f"{message}"
@@ -120,12 +123,28 @@ class QueryError(AsyncDBError):
             # Truncate long queries
             display_query = query[:200] + "..." if len(query) > 200 else query
             full_message += f"\n  Query: {display_query}"
-        if params:
-            full_message += f"\n  Parameters: {params}"
+        if masked_params:
+            full_message += f"\n  Parameters: {masked_params}"
         if original_error:
             full_message += f"\n  Original error: {original_error}"
 
         super().__init__(full_message, {k: v for k, v in details.items() if v is not None})
+
+    @staticmethod
+    def _mask_params(params: tuple) -> tuple:
+        """Mask potentially sensitive parameters for error messages."""
+        masked = []
+        for param in params:
+            if isinstance(param, str) and len(param) > 20:
+                # Mask long strings that might contain passwords or sensitive data
+                masked.append(f"<str:{len(param)} chars>")
+            elif isinstance(param, bytes):
+                # Mask binary data
+                masked.append(f"<bytes:{len(param)} bytes>")
+            else:
+                # Keep short strings, numbers, booleans, None as-is
+                masked.append(param)
+        return tuple(masked)
 
 
 class TransactionError(AsyncDBError):
