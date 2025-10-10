@@ -392,7 +392,7 @@ async with db.transaction() as tx:
 1. **Template Substitution**: All queries are automatically processed for `{{tables.}}` and `{{schema}}` placeholders
 2. **Consistent API**: Same method names and return types as `AsyncDatabaseManager`
 3. **Automatic Commit/Rollback**: Transaction commits on success, rolls back on exception
-4. **Nested Transactions**: Use savepoints for nested transaction support
+4. **Nested Transactions**: Use `tx.transaction()` for savepoints
 
 ```python
 async with db.transaction() as tx:
@@ -400,10 +400,12 @@ async with db.transaction() as tx:
     await tx.execute("INSERT INTO {{tables.orders}} (...) VALUES (...)")
 
     # Nested transaction (savepoint)
-    async with tx._conn.transaction():
+    async with tx.transaction():
         await tx.execute("INSERT INTO {{tables.order_items}} (...) VALUES (...)")
         # If this fails, only the nested transaction rolls back
 ```
+
+5. **Advanced**: For raw connection access, use `tx.connection` property (rarely needed)
 
 ## Migration Management
 
@@ -523,49 +525,82 @@ from pgdbm import MonitoredAsyncDatabaseManager
 
 monitored_db = MonitoredAsyncDatabaseManager(
     config=config,
-    slow_query_threshold=1.0,  # Log queries slower than 1 second
-    track_query_metrics=True,
-    query_history_size=1000
+    slow_query_threshold_ms=1000,  # Log queries slower than 1000ms
+    max_history_size=1000
 )
 ```
 
 #### Additional Constructor Parameters
 
-| Parameter              | Type    | Default | Description                                 |
-|------------------------|---------|---------|---------------------------------------------|
-| `slow_query_threshold` | `float` | `1.0`   | Threshold in seconds for slow query logging |
-| `track_query_metrics`  | `bool`  | `True`  | Enable query metrics collection             |
-| `query_history_size`   | `int`   | `1000`  | Number of queries to keep in history        |
+| Parameter                  | Type  | Default | Description                                      |
+|----------------------------|-------|---------|--------------------------------------------------|
+| `slow_query_threshold_ms`  | `int` | `1000`  | Threshold in milliseconds for slow query logging |
+| `max_history_size`         | `int` | `1000`  | Number of queries to keep in history             |
 
 #### Additional Methods
 
-##### async get_query_metrics() -> dict[str, Any]
-Get aggregated query performance metrics.
+##### async get_metrics() -> ConnectionMetrics
+Get aggregated query performance and connection metrics.
 
 ```python
-metrics = await monitored_db.get_query_metrics()
-print(f"Total queries: {metrics['total_queries']}")
-print(f"Average duration: {metrics['avg_duration_ms']}ms")
-print(f"Slow queries: {metrics['slow_queries']}")
+metrics = await monitored_db.get_metrics()
+print(f"Total queries: {metrics.queries_executed}")
+print(f"Average duration: {metrics.avg_query_time_ms}ms")
+print(f"Pool utilization: {metrics.pool_utilization}%")
 ```
 
-##### async get_slow_queries(limit: int = 10) -> list[dict[str, Any]]
-Get recent slow queries for analysis.
+Returns a `ConnectionMetrics` object with properties:
+- `queries_executed`: Total queries executed
+- `queries_failed`: Total failed queries
+- `avg_query_time_ms`: Average query time in milliseconds
+- `slowest_query_ms`: Slowest query time
+- `pool_size`, `pool_free`, `pool_used`: Connection pool statistics
+- `pool_utilization`: Pool usage percentage (0-100)
+
+##### get_slow_queries(threshold_ms: Optional[float] = None) -> list[QueryMetrics]
+Get queries that exceeded the threshold.
 
 ```python
-slow_queries = await monitored_db.get_slow_queries(limit=20)
+# Use configured threshold
+slow_queries = monitored_db.get_slow_queries()
+
+# Or specify custom threshold
+very_slow = monitored_db.get_slow_queries(threshold_ms=5000)
+
 for query in slow_queries:
-    print(f"{query['duration_ms']}ms: {query['query'][:50]}...")
+    print(f"{query.duration_ms}ms: {query.query[:50]}...")
 ```
 
-##### async get_query_history(limit: int = 100) -> list[dict[str, Any]]
+##### get_query_history(limit: Optional[int] = None, include_errors: bool = True) -> list[QueryMetrics]
 Get recent query execution history.
 
-##### async analyze_query_patterns() -> dict[str, Any]
-Analyze query patterns to identify optimization opportunities.
+```python
+# Get last 20 queries
+history = monitored_db.get_query_history(limit=20)
 
-##### async get_connection_metrics() -> dict[str, Any]
-Get detailed connection pool metrics.
+# Get only successful queries
+successful = monitored_db.get_query_history(include_errors=False)
+
+for query in history:
+    print(f"{query.duration_ms}ms: {query.query[:50]}")
+```
+
+##### async explain_query(query: str, *args: Any, analyze: bool = False) -> list[dict[str, Any]]
+Get query execution plan using EXPLAIN.
+
+```python
+# Get execution plan
+plan = await monitored_db.explain_query(
+    "SELECT * FROM {{tables.users}} WHERE active = true"
+)
+
+# Get actual execution stats with EXPLAIN ANALYZE
+analyzed = await monitored_db.explain_query(
+    "SELECT * FROM {{tables.orders}} WHERE user_id = $1",
+    user_id,
+    analyze=True
+)
+```
 
 ### DatabaseDebugger
 
