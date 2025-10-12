@@ -1,6 +1,9 @@
 # Copyright (c) 2025 Juan Reyero
 # Licensed under the MIT License
 
+# ABOUTME: Database monitoring and debugging tools for tracking query performance, connection metrics, and slow queries.
+# ABOUTME: Provides MonitoredAsyncDatabaseManager, DatabaseDebugger, and performance metrics collection classes.
+
 """
 Monitoring and debugging utilities for async database operations.
 """

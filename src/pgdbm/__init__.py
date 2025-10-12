@@ -1,6 +1,9 @@
 # Copyright (c) 2025 Juan Reyero
 # Licensed under the MIT License
 
+# ABOUTME: Public API for pgdbm library, exports core classes and functions for PostgreSQL database management.
+# ABOUTME: Provides AsyncDatabaseManager, migrations, monitoring, testing utilities, and custom error classes.
+
 """
 Async-first database utilities for PostgreSQL with connection pooling, migrations, and testing support.
 """

@@ -1,6 +1,9 @@
 # Copyright (c) 2025 Juan Reyero
 # Licensed under the MIT License
 
+# ABOUTME: Core database management classes for async PostgreSQL connections, transactions, and schema isolation.
+# ABOUTME: Includes AsyncDatabaseManager, DatabaseConfig, TransactionManager, and SchemaManager with connection pooling.
+
 """
 Core async database utilities for connection management, schema handling, and transaction control.
 """

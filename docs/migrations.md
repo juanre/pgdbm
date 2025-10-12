@@ -46,7 +46,7 @@ from pgdbm import AsyncMigrationManager
 migrations = AsyncMigrationManager(db, migrations_path="./migrations")
 
 # Apply all pending migrations
-results = await migrations.apply_pending()
+results = await migrations.apply_pending_migrations()
 for result in results:
     print(f"Applied: {result.filename} in {result.execution_time_ms}ms")
 ```
@@ -279,7 +279,7 @@ for migration in pending:
     print(f"  - {migration.filename}")
 
 # Dry run execution
-results = await migrations.apply_pending(dry_run=True)
+results = await migrations.apply_pending_migrations(dry_run=True)
 # No changes made to database
 ```
 
@@ -326,7 +326,7 @@ print(f"Created migration: {filename}")
 
 ```python
 try:
-    await migrations.apply_pending()
+    await migrations.apply_pending_migrations()
 except Exception as e:
     # Check which migrations succeeded
     history = await migrations.get_migration_history()

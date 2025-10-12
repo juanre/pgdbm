@@ -1,6 +1,9 @@
 # Copyright (c) 2025 Juan Reyero
 # Licensed under the MIT License
 
+# ABOUTME: Database migration manager with version tracking, checksum validation, and module-specific migration support.
+# ABOUTME: Provides AsyncMigrationManager and Migration classes for applying SQL migrations with template substitution.
+
 """
 Async database migration management with tracking and debugging.
 """

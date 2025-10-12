@@ -878,6 +878,13 @@ class QueryError(AsyncDBError):
         self.original_error = original_error
 ```
 
+QueryError automatically masks potentially sensitive parameters in error messages:
+- Long strings (over 20 characters) are masked as `<str:N chars>` to protect passwords and sensitive data
+- Binary data is masked as `<bytes:N bytes>`
+- Short strings, numbers, booleans, and None values are included as-is
+
+This prevents accidental exposure of sensitive information in logs and error messages while maintaining useful debugging context.
+
 ### Schema Errors
 
 ```python

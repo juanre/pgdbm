@@ -1,6 +1,9 @@
 # Copyright (c) 2025 Juan Reyero
 # Licensed under the MIT License
 
+# ABOUTME: Custom exception classes for pgdbm with detailed error messages, context, and troubleshooting information.
+# ABOUTME: Includes QueryError with parameter masking, ConnectionError, MigrationError, and other specific error types.
+
 """
 Custom exceptions for pgdbm with helpful error messages and troubleshooting tips.
 """

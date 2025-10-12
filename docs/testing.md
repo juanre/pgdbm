@@ -1,6 +1,6 @@
 # Testing Guide
 
-This guide covers testing patterns for database-driven applications using pgdbm-utils.
+This guide covers testing patterns for database-driven applications using pgdbm.
 
 ## Overview
 
@@ -16,7 +16,7 @@ The library provides:
 ### Install Test Dependencies
 
 ```bash
-pip install pgdbm-utils[test]
+pip install pgdbm[test]
 # or
 pip install pytest pytest-asyncio
 ```
@@ -35,7 +35,7 @@ testpaths = tests
 ```python
 # tests/conftest.py
 import pytest
-from pgdbm_utils.fixtures import *  # Import all test fixtures
+from pgdbm.fixtures.conftest import *  # Import all test fixtures
 
 # Your custom fixtures can go here
 ```
@@ -107,7 +107,7 @@ async def test_with_sample_data(test_db_with_data):
         "SELECT * FROM users ORDER BY id"
     )
     assert len(users) == 3
-    assert users[0]['username'] == 'alice'
+    assert users[0]['email'] == 'alice@example.com'
 ```
 
 ## Writing Tests
@@ -121,16 +121,16 @@ from datetime import datetime
 async def test_user_crud_operations(test_db_with_tables):
     # Create
     user_id = await test_db_with_tables.execute_and_return_id(
-        """INSERT INTO users (username, email, created_at)
+        """INSERT INTO users (email, full_name, created_at)
            VALUES ($1, $2, $3)""",
-        "testuser", "test@example.com", datetime.utcnow()
+        "test@example.com", "Test User", datetime.utcnow()
     )
 
     # Read
     user = await test_db_with_tables.fetch_one(
         "SELECT * FROM users WHERE id = $1", user_id
     )
-    assert user['username'] == 'testuser'
+    assert user['email'] == 'test@example.com'
 
     # Update
     await test_db_with_tables.execute(
@@ -160,20 +160,20 @@ async def test_user_crud_operations(test_db_with_tables):
 
 ```python
 async def test_transaction_rollback(test_db_with_tables):
-    initial_count = await test_db_with_tables.fetch_val(
+    initial_count = await test_db_with_tables.fetch_value(
         "SELECT COUNT(*) FROM users"
     )
 
     with pytest.raises(ValueError):
         async with test_db_with_tables.transaction():
             await test_db_with_tables.execute(
-                "INSERT INTO users (username, email) VALUES ($1, $2)",
-                "user1", "user1@example.com"
+                "INSERT INTO users (email, full_name) VALUES ($1, $2)",
+                "user1@example.com", "User One"
             )
             raise ValueError("Force rollback")
 
     # Verify rollback
-    final_count = await test_db_with_tables.fetch_val(
+    final_count = await test_db_with_tables.fetch_value(
         "SELECT COUNT(*) FROM users"
     )
     assert final_count == initial_count
@@ -186,8 +186,8 @@ async def test_transaction_rollback(test_db_with_tables):
 async def sample_user(test_db_with_tables):
     """Create a sample user for tests"""
     user_id = await test_db_with_tables.execute_and_return_id(
-        "INSERT INTO users (username, email) VALUES ($1, $2)",
-        "fixture_user", "fixture@example.com"
+        "INSERT INTO users (email, full_name) VALUES ($1, $2)",
+        "fixture@example.com", "Fixture User"
     )
     return user_id
 
@@ -216,10 +216,10 @@ class UserService:
     def __init__(self, db):
         self.db = db
 
-    async def create_user(self, username: str, email: str):
+    async def create_user(self, email: str, full_name: str):
         return await self.db.execute_and_return_id(
-            "INSERT INTO users (username, email) VALUES ($1, $2)",
-            username, email
+            "INSERT INTO users (email, full_name) VALUES ($1, $2)",
+            email, full_name
         )
 
     async def get_user(self, user_id: int):
@@ -234,12 +234,12 @@ async def test_user_service(test_db_with_tables):
     service = UserService(test_db_with_tables)
 
     # Test creation
-    user_id = await service.create_user("testuser", "test@example.com")
+    user_id = await service.create_user("test@example.com", "Test User")
     assert user_id is not None
 
     # Test retrieval
     user = await service.get_user(user_id)
-    assert user['username'] == "testuser"
+    assert user['email'] == "test@example.com"
 ```
 
 ### Testing Error Cases
@@ -250,15 +250,15 @@ import asyncpg
 async def test_unique_constraint(test_db_with_tables):
     # Insert first user
     await test_db_with_tables.execute(
-        "INSERT INTO users (username, email) VALUES ($1, $2)",
-        "duplicate", "dup@example.com"
+        "INSERT INTO users (email, full_name) VALUES ($1, $2)",
+        "dup@example.com", "Duplicate User"
     )
 
     # Try to insert duplicate email
     with pytest.raises(asyncpg.UniqueViolationError):
         await test_db_with_tables.execute(
-            "INSERT INTO users (username, email) VALUES ($1, $2)",
-            "duplicate2", "dup@example.com"  # Same email
+            "INSERT INTO users (email, full_name) VALUES ($1, $2)",
+            "dup@example.com", "Another User"  # Same email
         )
 ```
 
@@ -272,7 +272,7 @@ async def test_bulk_insert_performance(test_db_with_tables):
 
     # Prepare data
     users = [
-        (f"user{i}", f"user{i}@example.com")
+        (f"user{i}@example.com", f"User {i}")
         for i in range(1000)
     ]
 
@@ -280,13 +280,13 @@ async def test_bulk_insert_performance(test_db_with_tables):
     await test_db_with_tables.copy_records_to_table(
         "users",
         records=users,
-        columns=['username', 'email']
+        columns=['email', 'full_name']
     )
 
     elapsed = time.time() - start
 
     # Verify
-    count = await test_db_with_tables.fetch_val(
+    count = await test_db_with_tables.fetch_value(
         "SELECT COUNT(*) FROM users"
     )
     assert count == 1000
@@ -300,15 +300,15 @@ async def test_bulk_insert_performance(test_db_with_tables):
 ```python
 # tests/conftest.py
 import pytest
-from pgdbm_utils import AsyncTestDatabase, DatabaseTestConfig
+from pgdbm import AsyncTestDatabase, DatabaseTestConfig
 
 @pytest.fixture
 async def custom_test_db():
     config = DatabaseTestConfig(
         host="localhost",
         port=5432,
-        prefix="myapp_test_",  # Custom prefix
-        template="template1",   # Different template
+        test_db_prefix="myapp_test_",  # Custom prefix
+        test_db_template="template1",   # Different template
     )
 
     test_db = AsyncTestDatabase(config)
@@ -323,16 +323,16 @@ async def custom_test_db():
 ### Testing Migrations
 
 ```python
-from pgdbm_utils import AsyncMigrationManager
+from pgdbm import AsyncMigrationManager
 
 async def test_migrations(test_db):
     migrations = AsyncMigrationManager(
         test_db,
-        migrations_dir="./migrations"
+        migrations_path="./migrations"
     )
 
     # Apply migrations
-    results = await migrations.apply_pending()
+    results = await migrations.apply_pending_migrations()
 
     # Verify schema
     tables = await test_db.fetch_all("""
@@ -354,7 +354,7 @@ async def test_multi_tenant(test_db):
     await test_db.execute("CREATE SCHEMA tenant_2")
 
     # Create managers
-    from pgdbm_utils import AsyncDatabaseManager
+    from pgdbm import AsyncDatabaseManager
 
     tenant1 = AsyncDatabaseManager(
         pool=test_db._pool,

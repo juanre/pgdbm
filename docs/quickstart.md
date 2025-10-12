@@ -64,7 +64,7 @@ async def main():
     try:
         # Apply migrations
         migrations = AsyncMigrationManager(db, migrations_path="./migrations")
-        result = await migrations.apply_pending()
+        result = await migrations.apply_pending_migrations()
         print(f"Applied {len(result['applied'])} migrations")
 
         # Use your database
@@ -126,7 +126,7 @@ class MyLibrary:
             migrations_path=Path(__file__).parent / "migrations",
             module_name="my_library"  # This prevents conflicts!
         )
-        await migrations.apply_pending()
+        await migrations.apply_pending_migrations()
 
     async def create_user(self, email: str, name: str) -> int:
         """Create a user using our module's table."""
@@ -244,7 +244,7 @@ async def lifespan(app: FastAPI):
 
     # Apply migrations
     migrations = AsyncMigrationManager(app.state.db, "./migrations")
-    await migrations.apply_pending()
+    await migrations.apply_pending_migrations()
 
     yield
 

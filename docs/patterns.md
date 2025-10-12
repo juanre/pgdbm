@@ -44,7 +44,7 @@ class MyService:
             migrations_path="./migrations",
             module_name="myservice"
         )
-        await migrations.apply_pending()
+        await migrations.apply_pending_migrations()
 
     async def shutdown(self):
         if self.db:
@@ -114,7 +114,7 @@ class MyLibrary:
             migrations_path=Path(__file__).parent / "migrations",
             module_name="my_library"  # Unique name!
         )
-        await migrations.apply_pending()
+        await migrations.apply_pending_migrations()
 
     async def close(self):
         # Only close if we created the connection
@@ -433,7 +433,7 @@ class MyLibrary:
     async def initialize(self):
         # Always run migrations regardless of db source
         migrations = AsyncMigrationManager(...)
-        await migrations.apply_pending()
+        await migrations.apply_pending_migrations()
 ```
 
 ### 4. Mixed Schema References

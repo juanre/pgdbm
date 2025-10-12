@@ -14,12 +14,12 @@ A PostgreSQL library for Python that provides high-level async database operatio
 
 ## Key Features
 
-- **🚀 High Performance** - Built on asyncpg, the fastest PostgreSQL driver for Python
-- **📦 Migration System** - Version-controlled schema migrations with automatic ordering
-- **🧪 Testing Support** - Fixtures and utilities for database testing
-- **🔧 Module Isolation** - Prevent table conflicts when modules share databases
-- **📊 Monitoring** - Track slow queries and connection pool metrics
-- **🔒 Type Safe** - Full type hints and Pydantic integration
+- **High Performance** - Built on asyncpg, the fastest PostgreSQL driver for Python
+- **Migration System** - Version-controlled schema migrations with automatic ordering
+- **Testing Support** - Fixtures and utilities for database testing
+- **Module Isolation** - Prevent table conflicts when modules share databases
+- **Monitoring** - Track slow queries and connection pool metrics
+- **Type Safe** - Full type hints and Pydantic integration
 
 ### Design intent: dual ownership
 
@@ -70,7 +70,7 @@ await db.connect()
 
 # Apply migrations
 migrations = AsyncMigrationManager(db, migrations_path="./migrations")
-await migrations.apply_pending()
+await migrations.apply_pending_migrations()
 
 # Use your database
 user_id = await db.execute_and_return_id(
@@ -89,12 +89,12 @@ Standalone vs shared-pool usage:
 config = DatabaseConfig(connection_string="postgresql://localhost/app", schema="users")
 db = AsyncDatabaseManager(config)
 await db.connect()
-await AsyncMigrationManager(db, "./migrations", module_name="users").apply_pending()
+await AsyncMigrationManager(db, "./migrations", module_name="users").apply_pending_migrations()
 
 # Shared pool (uses external DB):
 shared = await AsyncDatabaseManager.create_shared_pool(DatabaseConfig(connection_string="postgresql://localhost/app"))
 db = AsyncDatabaseManager(pool=shared, schema="users")  # Module still runs its own migrations
-await AsyncMigrationManager(db, "./migrations", module_name="users").apply_pending()
+await AsyncMigrationManager(db, "./migrations", module_name="users").apply_pending_migrations()
 ```
 
 ## Core Patterns
@@ -106,7 +106,7 @@ pgdbm includes a built-in migration system:
 ```python
 # Apply all pending migrations
 migrations = AsyncMigrationManager(db, migrations_path="./migrations")
-result = await migrations.apply_pending()
+result = await migrations.apply_pending_migrations()
 
 # Check what was applied
 for migration in result['applied']:
@@ -210,7 +210,7 @@ db = MonitoredAsyncDatabaseManager(
 )
 
 # Get metrics
-metrics = await db.get_query_metrics()
+metrics = await db.get_metrics()
 slow_queries = await db.get_slow_queries(limit=10)
 ```
 

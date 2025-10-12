@@ -1,6 +1,9 @@
 # Copyright (c) 2025 Juan Reyero
 # Licensed under the MIT License
 
+# ABOUTME: Test database utilities for creating isolated test databases, fixtures, and helper functions for testing.
+# ABOUTME: Provides AsyncTestDatabase, DatabaseTestCase, and DatabaseTestConfig for async pytest-based tests.
+
 """
 Testing utilities for async database operations with debugging support.
 """
