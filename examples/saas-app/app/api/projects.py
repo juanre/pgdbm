@@ -8,12 +8,12 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from ..db.tenant import TenantDatabase
 from ..middleware.tenant import require_tenant
 from ..models.project import (
+    AgentCreate,
     Project,
     ProjectCreate,
     ProjectStatus,
     ProjectUpdate,
     ProjectWithTasks,
-    AgentCreate,
 )
 
 router = APIRouter(prefix="/api/projects", tags=["Projects"])

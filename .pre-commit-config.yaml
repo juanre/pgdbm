@@ -41,7 +41,7 @@ repos:
     rev: v1.17.0
     hooks:
       - id: mypy
-        additional_dependencies: [asyncpg-stubs, pydantic, pytest, pytest-asyncio]
+        additional_dependencies: [asyncpg-stubs, pydantic, pytest, pytest-asyncio, types-click]
         args: ['--config-file=pyproject.toml', 'src/']
         files: '^src/'
         pass_filenames: false

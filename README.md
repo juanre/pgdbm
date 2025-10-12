@@ -4,22 +4,29 @@
 [![Python](https://img.shields.io/pypi/pyversions/pgdbm.svg)](https://pypi.org/project/pgdbm/)
 [![PyPI](https://img.shields.io/pypi/v/pgdbm.svg)](https://pypi.org/project/pgdbm/)
 
-A PostgreSQL library for Python that provides high-level async database operations with built-in migration management, connection pooling, and testing utilities. It offers:
+A PostgreSQL library for Python that provides high-level async database operations with built-in migration management, connection pooling, and testing utilities.
 
-- **Connection pooling** with proper resource management
-- **Schema migrations** that are version-controlled and automated
-- **Testing utilities** that provide isolated test databases
-- **Module isolation** when multiple services share a database
-- **Monitoring** for slow queries and connection issues
+## 🎯 Quick Architecture Decision
+
+**Choose your pattern based on your needs:**
+
+| If you have... | Use this pattern | See example |
+|---------------|------------------|-------------|
+| **Single service** | [Single Database Manager](#quick-start) | Quick Start below |
+| **Multiple services** | [Shared Pool Pattern](#3-connection-pool-sharing) | [microservices/](examples/microservices/) |
+| **Multi-tenant SaaS** | [Schema Isolation](#2-module-isolation) | [saas-app/](examples/saas-app/) |
+| **Reusable library** | [Dual-Mode Pattern](#design-intent-dual-ownership) | [Pattern Guide](docs/production-patterns.md#dual-mode-library-pattern) |
+
+> **📚 New to pgdbm?** Start with our [Production Patterns Guide](docs/production-patterns.md) to avoid common pitfalls and learn best practices from real-world experience.
 
 ## Key Features
 
-- **High Performance** - Built on asyncpg, the fastest PostgreSQL driver for Python
-- **Migration System** - Version-controlled schema migrations with automatic ordering
-- **Testing Support** - Fixtures and utilities for database testing
-- **Module Isolation** - Prevent table conflicts when modules share databases
-- **Monitoring** - Track slow queries and connection pool metrics
-- **Type Safe** - Full type hints and Pydantic integration
+- **🚀 High Performance** - Built on asyncpg, the fastest PostgreSQL driver for Python
+- **📦 Migration System** - Version-controlled schema migrations with automatic ordering
+- **🧪 Testing Support** - Fixtures and utilities for database testing
+- **🔧 Module Isolation** - Prevent table conflicts when modules share databases
+- **📊 Monitoring** - Track slow queries and connection pool metrics
+- **🔒 Type Safe** - Full type hints and Pydantic integration
 
 ### Design intent: dual ownership
 
@@ -37,11 +44,87 @@ uv add pgdbm
 
 # Or using pip
 pip install pgdbm
+
+# Install with CLI support (optional)
+pip install pgdbm[cli]
 ```
 
 ## Quick Start
 
-### 1. Create a migration file
+### ⚡ Production-Ready Pattern (Recommended)
+
+For production applications, use the **shared pool pattern** - it's the most efficient and scalable:
+
+```python
+# app.py - Complete production setup
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Depends
+from pgdbm import AsyncDatabaseManager, DatabaseConfig
+from pgdbm.migrations import AsyncMigrationManager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Create ONE shared pool for entire application
+    config = DatabaseConfig(
+        connection_string="postgresql://localhost/myapp",
+        min_connections=10,
+        max_connections=50,
+    )
+    shared_pool = await AsyncDatabaseManager.create_shared_pool(config)
+
+    # Create schema-specific managers (share the pool)
+    app.state.dbs = {
+        'users': AsyncDatabaseManager(pool=shared_pool, schema="users"),
+        'orders': AsyncDatabaseManager(pool=shared_pool, schema="orders"),
+    }
+
+    # Run migrations for each schema
+    for name, db in app.state.dbs.items():
+        migrations = AsyncMigrationManager(db, f"migrations/{name}", name)
+        await migrations.apply_pending_migrations()
+
+    yield
+    await shared_pool.close()
+
+app = FastAPI(lifespan=lifespan)
+
+# Use with dependency injection
+@app.post("/users")
+async def create_user(email: str, request: Request):
+    db = request.app.state.dbs['users']
+    user_id = await db.fetch_val(
+        "INSERT INTO {{tables.users}} (email) VALUES ($1) RETURNING id",
+        email
+    )
+    return {"id": user_id}
+```
+
+### Simple Single-Service Setup
+
+For simple applications with just one service:
+
+```python
+from pgdbm import AsyncDatabaseManager, DatabaseConfig, AsyncMigrationManager
+
+# Configure and connect
+config = DatabaseConfig(connection_string="postgresql://localhost/myapp")
+db = await AsyncDatabaseManager.create(config)
+
+# Apply migrations
+migrations = AsyncMigrationManager(db, migrations_path="./migrations")
+await migrations.apply_pending_migrations()
+
+# Use your database
+user_id = await db.fetch_val(
+    "INSERT INTO {{tables.users}} (email) VALUES ($1) RETURNING id",
+    "user@example.com"
+)
+
+# Clean up
+await db.close()
+```
+
+### Migration Files
 
 ```sql
 -- migrations/001_initial.sql
@@ -52,81 +135,36 @@ CREATE TABLE IF NOT EXISTS {{tables.users}} (
 );
 ```
 
-### 2. Use pgdbm
-
-```python
-from pgdbm import AsyncDatabaseManager, DatabaseConfig, AsyncMigrationManager
-
-# Configure and connect
-config = DatabaseConfig(
-    host="localhost",
-    database="myapp",
-    user="postgres",
-    password="secret"
-)
-
-db = AsyncDatabaseManager(config)
-await db.connect()
-
-# Apply migrations
-migrations = AsyncMigrationManager(db, migrations_path="./migrations")
-await migrations.apply_pending_migrations()
-
-# Use your database
-user_id = await db.execute_and_return_id(
-    "INSERT INTO {{tables.users}} (email) VALUES ($1)",
-    "user@example.com"
-)
-
-# Clean up
-await db.disconnect()
-```
-
-Standalone vs shared-pool usage:
-
-```python
-# Standalone (owns the DB):
-config = DatabaseConfig(connection_string="postgresql://localhost/app", schema="users")
-db = AsyncDatabaseManager(config)
-await db.connect()
-await AsyncMigrationManager(db, "./migrations", module_name="users").apply_pending_migrations()
-
-# Shared pool (uses external DB):
-shared = await AsyncDatabaseManager.create_shared_pool(DatabaseConfig(connection_string="postgresql://localhost/app"))
-db = AsyncDatabaseManager(pool=shared, schema="users")  # Module still runs its own migrations
-await AsyncMigrationManager(db, "./migrations", module_name="users").apply_pending_migrations()
-```
+> **💡 Important:** Always use `{{tables.tablename}}` syntax - it automatically handles schema prefixes!
 
 ## Core Patterns
 
-### 1. Migration Management
+### 1. 🔑 The Golden Rule: One Pool, Many Schemas
 
-pgdbm includes a built-in migration system:
+**This is the most important pattern in pgdbm:**
 
 ```python
-# Apply all pending migrations
-migrations = AsyncMigrationManager(db, migrations_path="./migrations")
-result = await migrations.apply_pending_migrations()
+# ✅ CORRECT: One shared pool for entire application
+shared_pool = await AsyncDatabaseManager.create_shared_pool(config)
+users_db = AsyncDatabaseManager(pool=shared_pool, schema="users")
+orders_db = AsyncDatabaseManager(pool=shared_pool, schema="orders")
+billing_db = AsyncDatabaseManager(pool=shared_pool, schema="billing")
 
-# Check what was applied
-for migration in result['applied']:
-    print(f"Applied {migration['filename']} in {migration['execution_time_ms']}ms")
+# ❌ WRONG: Multiple pools (wastes connections, hits limits)
+users_db = AsyncDatabaseManager(DatabaseConfig(...))   # Creates own pool
+orders_db = AsyncDatabaseManager(DatabaseConfig(...))  # Another pool - BAD!
 ```
 
-Migrations are automatically ordered by version number extracted from filenames.
+> **Why?** PostgreSQL has connection limits. Multiple pools waste connections and can exhaust your database. One shared pool is more efficient and prevents connection errors.
 
-### 2. Module Isolation
+### 2. Module Isolation with Schemas
 
 When multiple modules share a database, use schemas to prevent table conflicts:
 
 ```python
-# Each module can get its own schema
-user_db = AsyncDatabaseManager(
-    config=DatabaseConfig(database="app", schema="user_module")
-)
-blog_db = AsyncDatabaseManager(
-    config=DatabaseConfig(database="app", schema="blog_module")
-)
+# Each module gets its own schema namespace
+user_db = AsyncDatabaseManager(pool=shared_pool, schema="user_module")
+blog_db = AsyncDatabaseManager(pool=shared_pool, schema="blog_module")
 
 # Both can have a "users" table without conflict:
 # - user_module.users
@@ -135,17 +173,19 @@ blog_db = AsyncDatabaseManager(
 
 The `{{tables.tablename}}` syntax in queries automatically expands to the correct schema-qualified name.
 
-### 3. Connection Pool Sharing
-
-For applications with multiple services sharing a database:
+### 3. Migration Management
 
 ```python
-# Create shared pool
-shared_pool = await AsyncDatabaseManager.create_shared_pool(config)
+# Migrations know their schema from the database manager
+migrations = AsyncMigrationManager(
+    db,                           # Schema is already set in db
+    migrations_path="./migrations",
+    module_name="myservice"       # Unique identifier for this service
+)
+result = await migrations.apply_pending_migrations()
 
-# Each service gets its own schema but shares connections
-user_db = AsyncDatabaseManager(pool=shared_pool, schema="users")
-billing_db = AsyncDatabaseManager(pool=shared_pool, schema="billing")
+# ⚠️ Common mistake: Don't pass schema to AsyncMigrationManager
+# migrations = AsyncMigrationManager(db, path, schema="foo")  # WRONG - no schema param!
 ```
 
 ### 4. Transactions with Template Substitution
@@ -254,8 +294,11 @@ The `examples/` directory contains applications:
 
 ## Documentation
 
-- [Quickstart Guide](docs/quickstart.md) - Get started
-- [Patterns Guide](docs/patterns.md) - Deployment patterns, schema isolation, and framework integration
+- **🚀 [Production Patterns Guide](docs/production-patterns.md)** - **START HERE!** Real-world patterns and best practices
+- **📋 [Quick Reference](docs/quick-reference.md)** - Cheatsheet for common patterns and commands
+- [Quickstart Guide](docs/quickstart.md) - Step-by-step getting started
+- [CLI Reference](docs/cli.md) - Command-line interface documentation
+- [Patterns Guide](docs/patterns.md) - Deployment patterns, dual-mode libraries, and framework integration
 - [Migration Guide](docs/migrations.md) - Schema versioning and {{tables.}} syntax
 - [API Reference](docs/api-reference.md) - Complete API documentation
 - [Testing Guide](docs/testing.md) - Testing best practices

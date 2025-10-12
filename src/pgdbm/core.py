@@ -308,6 +308,9 @@ class DatabaseConfig(BaseModel):
 class AsyncDatabaseManager:
     """Async database manager with connection pooling and debugging support."""
 
+    # Class-level registry to track multiple pools to same database
+    _pool_registry: dict[str, int] = {}
+
     def __init__(
         self,
         config: Optional[DatabaseConfig] = None,
@@ -324,18 +327,29 @@ class AsyncDatabaseManager:
         """
         if pool and config:
             raise ConfigurationError(
-                "Cannot provide both config and pool parameters. "
-                "Use either a DatabaseConfig OR an external pool, not both."
+                "Cannot provide both config and pool parameters.\n"
+                "Use either a DatabaseConfig OR an external pool, not both.\n\n"
+                "For production, use the shared pool pattern:\n"
+                "  shared_pool = await AsyncDatabaseManager.create_shared_pool(config)\n"
+                "  db1 = AsyncDatabaseManager(pool=shared_pool, schema='service1')\n"
+                "  db2 = AsyncDatabaseManager(pool=shared_pool, schema='service2')"
             )
         if not pool and not config:
             raise ConfigurationError(
-                "Must provide either config or pool parameter. "
-                "Initialize with DatabaseConfig for a new pool, or pass an existing pool."
+                "Must provide either config or pool parameter.\n"
+                "Initialize with DatabaseConfig for a new pool, or pass an existing pool.\n\n"
+                "Examples:\n"
+                "  # Create new pool (simple apps):\n"
+                "  db = AsyncDatabaseManager(DatabaseConfig(...))\n\n"
+                "  # Use shared pool (recommended for production):\n"
+                "  db = AsyncDatabaseManager(pool=shared_pool, schema='myservice')"
             )
         if schema and not pool:
             raise ConfigurationError(
-                "Schema override only valid with external pool. "
-                "When using DatabaseConfig, set schema in the config object."
+                "Schema override only valid with external pool.\n"
+                "When using DatabaseConfig, set schema in the config object:\n\n"
+                "  config = DatabaseConfig(connection_string='...', schema='myschema')\n"
+                "  db = AsyncDatabaseManager(config)"
             )
 
         self._external_pool = pool is not None
@@ -375,6 +389,24 @@ class AsyncDatabaseManager:
 
         dsn = self.config.get_dsn()
         server_settings = self.config.get_server_settings()
+
+        # Warn if creating multiple pools to the same database
+        db_key = f"{self.config.host}:{self.config.port}/{self.config.database}"
+        if not hasattr(AsyncDatabaseManager, "_pool_registry"):
+            AsyncDatabaseManager._pool_registry = {}
+
+        if db_key in AsyncDatabaseManager._pool_registry:
+            logger.warning(
+                f"⚠️  Creating another connection pool to {db_key}\n"
+                f"   This is usually a mistake! You already have {AsyncDatabaseManager._pool_registry[db_key]} pool(s) to this database.\n"
+                f"   Consider using the shared pool pattern instead:\n"
+                f"     shared_pool = await AsyncDatabaseManager.create_shared_pool(config)\n"
+                f"     db1 = AsyncDatabaseManager(pool=shared_pool, schema='service1')\n"
+                f"     db2 = AsyncDatabaseManager(pool=shared_pool, schema='service2')\n"
+            )
+        AsyncDatabaseManager._pool_registry[db_key] = (
+            AsyncDatabaseManager._pool_registry.get(db_key, 0) + 1
+        )
 
         if self._debug:
             logger.info(

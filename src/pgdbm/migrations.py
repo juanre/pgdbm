@@ -71,7 +71,27 @@ class AsyncMigrationManager:
         migrations_path: str = "./migrations",
         migrations_table: str = "schema_migrations",
         module_name: Optional[str] = None,
-    ):
+        **kwargs: Any,
+    ) -> None:
+        # Check for common mistake: passing schema parameter
+        if "schema" in kwargs:
+            raise TypeError(
+                "AsyncMigrationManager doesn't take a 'schema' parameter.\n"
+                "The schema should be configured in the AsyncDatabaseManager instead:\n\n"
+                "  # Correct usage:\n"
+                "  db = AsyncDatabaseManager(pool=shared_pool, schema='myschema')\n"
+                "  migrations = AsyncMigrationManager(db, migrations_path='./migrations')\n\n"
+                "The migration manager will use the schema from the database manager."
+            )
+
+        # Check for other unexpected parameters
+        if kwargs:
+            unexpected = ", ".join(kwargs.keys())
+            raise TypeError(
+                f"AsyncMigrationManager got unexpected keyword arguments: {unexpected}\n"
+                f"Valid parameters are: db_manager, migrations_path, migrations_table, module_name"
+            )
+
         self.db = db_manager
         # Validate and resolve migration path to prevent directory traversal
         self.migrations_path = Path(migrations_path).resolve()

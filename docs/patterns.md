@@ -168,6 +168,363 @@ await library.initialize()
 - Must handle both patterns
 - Requires careful cleanup logic
 
+## Pattern 2B: Dual-Mode Library (Extended)
+
+This pattern extends Pattern 2 to show how to build libraries that can work both standalone and as part of a larger application, with special focus on FastAPI services and the pgdbm CLI.
+
+### When to Use
+
+- Building services that need both standalone and integrated deployment
+- Creating pluggable FastAPI applications
+- Developing services that will be extended by other services
+- Supporting both CLI and library usage
+
+### Implementation with pgdbm CLI
+
+The pgdbm CLI can generate a complete dual-mode library scaffold:
+
+```bash
+# Generate dual-mode library with FastAPI
+pgdbm generate library my_service --dual-mode --with-api
+
+# This creates:
+# my_service/
+# ├── src/my_service/
+# │   ├── __init__.py
+# │   ├── main.py        # Dual-mode FastAPI app
+# │   ├── cli.py         # Standalone CLI
+# │   ├── core.py        # Service logic
+# │   └── database.py    # Dual-mode database
+# ├── migrations/
+# │   └── 001_initial.sql
+# ├── tests/
+# │   └── test_my_service.py
+# ├── pyproject.toml
+# └── README.md
+```
+
+### Dual-Mode FastAPI Service
+
+```python
+# my_service/main.py
+from typing import Optional
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from pgdbm import AsyncDatabaseManager, AsyncMigrationManager
+from pathlib import Path
+
+def create_app(
+    db_manager: Optional[AsyncDatabaseManager] = None,
+    run_migrations: bool = True,
+    schema: Optional[str] = None,
+    config: Optional[dict] = None
+) -> FastAPI:
+    """Create service app supporting both standalone and library modes.
+
+    Args:
+        db_manager: External database (library mode) or None (standalone)
+        run_migrations: Whether to apply migrations on startup
+        schema: Override schema name
+        config: Override configuration
+
+    Returns:
+        Configured FastAPI application
+    """
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # Determine mode
+        if db_manager:
+            # Library mode: use provided database
+            app.state.db = db_manager
+            app.state.external_db = True
+            app.state.schema = schema or "my_service"
+        else:
+            # Standalone mode: create own connection
+            from .config import Settings
+            from .database import Database
+
+            settings = Settings(**(config or {}))
+            db = Database(
+                settings.database_url,
+                schema=schema or settings.database_schema,
+            )
+            await db.connect()
+            app.state.db = db.db
+            app.state.external_db = False
+            app.state.schema = db.schema
+
+        # Always run migrations if requested
+        if run_migrations:
+            migrations_path = Path(__file__).parent / "migrations"
+            migrations = AsyncMigrationManager(
+                app.state.db,
+                migrations_path=str(migrations_path),
+                module_name=f"my_service_{app.state.schema}"
+            )
+            result = await migrations.apply_pending_migrations()
+
+            if result.get("applied"):
+                logger.info(f"Applied {len(result['applied'])} migrations")
+
+        try:
+            yield
+        finally:
+            # Only disconnect if we created the connection
+            if not app.state.external_db:
+                await app.state.db.disconnect()
+
+    # Create app
+    app = FastAPI(
+        title="My Service",
+        lifespan=lifespan,
+    )
+
+    # Add routes
+    from .routers import items, users
+    app.include_router(items.router)
+    app.include_router(users.router)
+
+    return app
+
+# Default app for standalone mode (backward compatible)
+app = create_app()
+```
+
+### Using as a Library
+
+```python
+# parent_app/main.py
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from pgdbm import AsyncDatabaseManager, DatabaseConfig
+from my_service import create_app as create_service_app
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage shared resources for parent app"""
+
+    # Create shared database connection
+    config = DatabaseConfig(
+        connection_string="postgresql://localhost/parent_app",
+        min_connections=50,  # Shared pool
+        max_connections=100
+    )
+    db = AsyncDatabaseManager(config)
+    await db.connect()
+
+    # Create service apps with different schemas
+    service1 = create_service_app(
+        db_manager=db,
+        schema="service1",
+        run_migrations=True
+    )
+
+    service2 = create_service_app(
+        db_manager=db,
+        schema="service2",
+        run_migrations=True
+    )
+
+    # Store for access
+    app.state.db = db
+    app.state.service1 = service1
+    app.state.service2 = service2
+
+    try:
+        yield
+    finally:
+        await db.disconnect()
+
+# Parent app
+app = FastAPI(lifespan=lifespan)
+
+# Mount service apps
+app.mount("/service1", app.state.service1)
+app.mount("/service2", app.state.service2)
+
+# Add parent-specific routes
+@app.get("/")
+async def root():
+    return {"services": ["service1", "service2"]}
+```
+
+### Testing Strategy
+
+Test both modes using parametrized fixtures:
+
+```python
+# tests/conftest.py
+import pytest
+import pytest_asyncio
+from pgdbm.fixtures.conftest import test_db_factory
+
+@pytest_asyncio.fixture(params=["standalone", "library"])
+async def service_app(request, test_db_factory):
+    """Test service in both modes"""
+    mode = request.param
+
+    if mode == "standalone":
+        # Test standalone mode
+        from my_service import create_app
+        app = create_app()
+    else:
+        # Test library mode with external db
+        from my_service import create_app
+        db = await test_db_factory.create_db(suffix="service", schema="test")
+        app = create_app(db_manager=db)
+
+    # Provide test client
+    from httpx import AsyncClient, ASGITransport
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client, mode
+
+# Usage in tests
+async def test_service_endpoint(service_app):
+    client, mode = service_app
+    response = await client.get("/items")
+    assert response.status_code == 200
+    # Test works in both modes!
+```
+
+### Module Configuration with pgdbm CLI
+
+Use `pgdbm.toml` to configure multi-module applications:
+
+```toml
+[project]
+name = "my_platform"
+default_env = "dev"
+
+[environments.dev]
+url = "postgresql://localhost/platform_dev"
+schema = "public"
+
+# Module configuration
+[modules.my_service]
+migrations_path = "src/my_service/migrations"
+schema = "my_service"
+mode = "dual"  # standalone | library | dual
+depends_on = []
+
+[modules.extended_service]
+migrations_path = "src/extended_service/migrations"
+schema = "extended_service"
+depends_on = ["my_service"]  # Migration dependencies
+mode = "library"  # Always needs parent app
+
+# Shared pool configuration (for integrated mode)
+[shared_pool]
+min_connections = 50
+max_connections = 100
+modules = ["my_service", "extended_service"]
+```
+
+Apply migrations with dependency resolution:
+
+```bash
+# Apply all modules in dependency order
+pgdbm migrate apply --all
+
+# Output:
+# Resolved module order: my_service → extended_service
+# ✓ my_service: 001_initial.sql
+# ✓ extended_service: 001_extensions.sql
+```
+
+### Best Practices
+
+1. **Always Support Both Modes**
+   - Accept optional `db_manager` parameter
+   - Create connection only if not provided
+   - Clean up only what you created
+
+2. **Use Unique Module Names**
+   ```python
+   # Include schema in module name to prevent conflicts
+   module_name = f"{service_name}_{schema}"
+   ```
+
+3. **Document Mode Requirements**
+   ```python
+   class MyService:
+       """Service supporting dual-mode operation.
+
+       Standalone mode:
+           service = MyService(connection_string="postgresql://...")
+
+       Library mode:
+           service = MyService(db_manager=shared_db)
+       """
+   ```
+
+4. **Test Both Modes**
+   - Parametrize tests to run in both configurations
+   - Verify migrations work in both modes
+   - Check resource cleanup
+
+5. **Provide Clear CLI**
+   ```bash
+   # Standalone operations
+   my-service serve
+   my-service db migrate
+   my-service db create
+
+   # Library mode documented in code
+   ```
+
+### Common Pitfalls
+
+1. **Hardcoded Connections**
+   ```python
+   # ❌ Bad: Always creates connection
+   class Service:
+       def __init__(self):
+           self.db = create_connection()
+
+   # ✅ Good: Accepts external connection
+   class Service:
+       def __init__(self, db=None):
+           self.db = db or create_connection()
+   ```
+
+2. **Schema Conflicts**
+   ```python
+   # ❌ Bad: Hardcoded schema
+   migrations = AsyncMigrationManager(db, module_name="service")
+
+   # ✅ Good: Schema-aware module name
+   migrations = AsyncMigrationManager(db, module_name=f"service_{schema}")
+   ```
+
+3. **Missing Cleanup**
+   ```python
+   # ❌ Bad: Always disconnects
+   async def shutdown():
+       await db.disconnect()
+
+   # ✅ Good: Conditional cleanup
+   async def shutdown():
+       if not self.external_db:
+           await db.disconnect()
+   ```
+
+### Real-World Example: llmring-server
+
+The llmring project demonstrates this pattern:
+
+- **llmring-server**: Core service with dual-mode support
+- **llmring-api**: Extends server using library mode
+- **llmring-cli**: Uses server as library for client operations
+
+This architecture allows:
+- Independent deployment of server
+- Extended functionality in API
+- Shared connection pools
+- Consistent migration management
+- Easy testing of all components
+
 ## Pattern 3: Shared Pool Application (Consumer)
 
 Use this when multiple services share one database with schema isolation.
