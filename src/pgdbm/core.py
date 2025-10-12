@@ -96,12 +96,25 @@ class TransactionManager:
             return await self._conn.fetchval(query, *args, column=column, timeout=timeout)
         return await self._conn.fetchval(query, *args, column=column)
 
-    def transaction(self) -> Any:
-        """Create a nested transaction (savepoint).
+    @asynccontextmanager
+    async def transaction(self) -> AsyncIterator["TransactionManager"]:
+        """Create a nested transaction (savepoint) with template substitution.
 
-        Returns the underlying connection's transaction context manager.
+        Returns a TransactionManager that automatically applies template substitution
+        to all queries within the nested transaction (savepoint).
+
+        Usage:
+            async with db.transaction() as tx:
+                # Outer transaction
+                await tx.execute("INSERT INTO {{tables.users}} (email) VALUES ($1)", email)
+
+                # Nested transaction (savepoint)
+                async with tx.transaction() as nested_tx:
+                    await nested_tx.execute("UPDATE {{tables.users}} SET active = true")
+                    # Automatically rolled back if exception occurs
         """
-        return self._conn.transaction()
+        async with self._conn.transaction():
+            yield TransactionManager(self._conn, self._db)
 
     @property
     def connection(self) -> Union[asyncpg.Connection, asyncpg.pool.PoolConnectionProxy]:

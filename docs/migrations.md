@@ -1,6 +1,6 @@
 # Migration Guide
 
-This guide covers database migration patterns using pgdbm-utils.
+This guide covers database migration patterns using pgdbm.
 
 ## Overview
 

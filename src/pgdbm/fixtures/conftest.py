@@ -1,6 +1,9 @@
 # Copyright (c) 2025 Juan Reyero
 # Licensed under the MIT License
 
+# ABOUTME: Pytest fixtures for async database testing with automatic setup and teardown.
+# ABOUTME: Provides test_db, test_db_with_schema, test_db_factory, test_db_with_tables, test_db_with_data, db_test_utils, and test_db_isolated fixtures.
+
 """
 Ready-to-use pytest fixtures for async database testing.
 
