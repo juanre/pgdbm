@@ -21,7 +21,7 @@ from typing import Any, Optional
 import pytest
 import pytest_asyncio
 
-from pgdbm.core import AsyncDatabaseManager
+from pgdbm.core import AsyncDatabaseManager, TransactionManager
 from pgdbm.testing import AsyncTestDatabase, DatabaseTestCase, DatabaseTestConfig
 
 # Default test configuration from environment
@@ -267,7 +267,7 @@ def db_test_utils(test_db: AsyncDatabaseManager) -> DatabaseTestCase:
 @pytest_asyncio.fixture
 async def test_db_isolated(
     test_db: AsyncDatabaseManager,
-) -> AsyncGenerator[AsyncDatabaseManager, None]:
+) -> AsyncGenerator[TransactionManager, None]:
     """
     Provides a test database with transaction isolation for each test.
 
@@ -275,15 +275,17 @@ async def test_db_isolated(
 
     Usage:
         async def test_isolated(test_db_isolated):
+            # test_db_isolated is a TransactionManager with the same API as AsyncDatabaseManager
             await test_db_isolated.execute("INSERT INTO users ...")
+            result = await test_db_isolated.fetch_one("SELECT * FROM users")
             # Changes are automatically rolled back
     """
     async with test_db.transaction() as conn:
         # Create a savepoint we can rollback to
         await conn.execute("SAVEPOINT test_isolation")
 
-        # Yield the connection for the test
-        yield test_db
+        # Yield the transaction manager for the test
+        yield conn
 
         # Rollback to savepoint
         await conn.execute("ROLLBACK TO SAVEPOINT test_isolation")
