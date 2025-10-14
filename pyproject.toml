@@ -1,6 +1,6 @@
 [project]
 name = "pgdbm"
-version = "0.1.0"
+version = "0.2.0"
 description = "Production-ready async PostgreSQL utilities with connection pooling, migrations, and testing support"
 readme = "README.md"
 license = {text = "MIT"}
