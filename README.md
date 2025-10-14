@@ -6,7 +6,7 @@
 
 A PostgreSQL library for Python that provides high-level async database operations with built-in migration management, connection pooling, and testing utilities.
 
-## 🎯 Quick Architecture Decision
+## Quick Architecture Decision
 
 **Choose your pattern based on your needs:**
 
@@ -17,16 +17,16 @@ A PostgreSQL library for Python that provides high-level async database operatio
 | **Multi-tenant SaaS** | [Schema Isolation](#2-module-isolation) | [saas-app/](examples/saas-app/) |
 | **Reusable library** | [Dual-Mode Pattern](#design-intent-dual-ownership) | [Pattern Guide](docs/production-patterns.md#dual-mode-library-pattern) |
 
-> **📚 New to pgdbm?** Start with our [Production Patterns Guide](docs/production-patterns.md) to avoid common pitfalls and learn best practices from real-world experience.
+> **New to pgdbm?** Start with our [Production Patterns Guide](docs/production-patterns.md) to avoid common pitfalls and learn best practices from real-world experience.
 
 ## Key Features
 
-- **🚀 High Performance** - Built on asyncpg, the fastest PostgreSQL driver for Python
-- **📦 Migration System** - Version-controlled schema migrations with automatic ordering
-- **🧪 Testing Support** - Fixtures and utilities for database testing
-- **🔧 Module Isolation** - Prevent table conflicts when modules share databases
-- **📊 Monitoring** - Track slow queries and connection pool metrics
-- **🔒 Type Safe** - Full type hints and Pydantic integration
+- **High Performance** - Built on asyncpg, the fastest PostgreSQL driver for Python
+- **Migration System** - Version-controlled schema migrations with automatic ordering
+- **Testing Support** - Fixtures and utilities for database testing
+- **Module Isolation** - Prevent table conflicts when modules share databases
+- **Monitoring** - Track slow queries and connection pool metrics
+- **Type Safe** - Full type hints and Pydantic integration
 
 ### Design intent: dual ownership
 
@@ -51,7 +51,7 @@ pip install pgdbm[cli]
 
 ## Quick Start
 
-### ⚡ Production-Ready Pattern (Recommended)
+### Production-Ready Pattern (Recommended)
 
 For production applications, use the **shared pool pattern** - it's the most efficient and scalable:
 
@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS {{tables.users}} (
 
 ## Core Patterns
 
-### 1. 🔑 The Golden Rule: One Pool, Many Schemas
+### 1. One Pool, Many Schemas
 
 **This is the most important pattern in pgdbm:**
 
@@ -294,7 +294,7 @@ The `examples/` directory contains applications:
 
 ## Documentation
 
-- **🚀 [Production Patterns Guide](docs/production-patterns.md)** - **START HERE!** Real-world patterns and best practices
+- **[Production Patterns Guide](docs/production-patterns.md)** - **START HERE!** Real-world patterns and best practices
 - **📋 [Quick Reference](docs/quick-reference.md)** - Cheatsheet for common patterns and commands
 - [Quickstart Guide](docs/quickstart.md) - Step-by-step getting started
 - [CLI Reference](docs/cli.md) - Command-line interface documentation
