@@ -72,14 +72,14 @@ async def create_user(email: str, db: UserDB):
 from pgdbm import AsyncDatabaseManager, DatabaseConfig
 
 async def main():
-    db = await AsyncDatabaseManager.create(
-        DatabaseConfig(connection_string="postgresql://localhost/myapp")
-    )
+    config = DatabaseConfig(connection_string="postgresql://localhost/myapp")
+    db = AsyncDatabaseManager(config)
+    await db.connect()
 
     # Use the database
     users = await db.fetch_all("SELECT * FROM {{tables.users}}")
 
-    await db.close()
+    await db.disconnect()
 ```
 
 ### 3. Multi-Tenant SaaS
@@ -223,7 +223,7 @@ config = DatabaseConfig(
 
 | Scenario | Pattern | Key Code |
 |----------|---------|----------|
-| Simple CRUD API | Single Service | `db = await AsyncDatabaseManager.create(config)` |
+| Simple CRUD API | Single Service | `db = AsyncDatabaseManager(config); await db.connect()` |
 | Microservices | Shared Pool | `pool = await create_shared_pool(config)` |
 | Multi-tenant SaaS | Schema Isolation | `AsyncDatabaseManager(pool=pool, schema=f"tenant_{id}")` |
 | Reusable library | Dual-Mode | `create_app(db_manager=external_db, standalone=False)` |

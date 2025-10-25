@@ -65,12 +65,13 @@ async def main():
         min_connections=2,
         max_connections=10,
     )
-    db = await AsyncDatabaseManager.create(config)
+    db = AsyncDatabaseManager(config)
+    await db.connect()
 
     # Use the database
     await db.execute("INSERT INTO users ...")
 
-    await db.close()
+    await db.disconnect()
 ```
 
 ### Shared Pool Pattern ⭐ (RECOMMENDED)
@@ -190,9 +191,14 @@ user_config = DatabaseConfig(connection_string="postgresql://localhost/users_db"
 order_config = DatabaseConfig(connection_string="postgresql://localhost/orders_db")
 billing_config = DatabaseConfig(connection_string="postgresql://localhost/billing_db")
 
-users_db = await AsyncDatabaseManager.create(user_config)
-orders_db = await AsyncDatabaseManager.create(order_config)
-billing_db = await AsyncDatabaseManager.create(billing_config)
+users_db = AsyncDatabaseManager(user_config)
+await users_db.connect()
+
+orders_db = AsyncDatabaseManager(order_config)
+await orders_db.connect()
+
+billing_db = AsyncDatabaseManager(billing_config)
+await billing_db.connect()
 ```
 
 ### Dual-Mode Pattern
@@ -284,9 +290,10 @@ async def get_users():
 ### ❌ Forgetting to Close Pools
 ```python
 # WRONG - Always clean up
-db = await AsyncDatabaseManager.create(config)
+db = AsyncDatabaseManager(config)
+await db.connect()
 # ... use db ...
-# Forgot: await db.close()
+# Forgot: await db.disconnect()
 ```
 
 ## 📈 Scaling Guidelines

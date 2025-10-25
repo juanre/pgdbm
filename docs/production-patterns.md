@@ -73,7 +73,8 @@ async def lifespan(app: FastAPI):
         max_connections=20,
     )
 
-    db = await AsyncDatabaseManager.create(config)
+    db = AsyncDatabaseManager(config)
+    await db.connect()
     app.state.db = db
 
     # Run migrations
@@ -86,7 +87,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    await db.close()
+    await db.disconnect()
 
 app = FastAPI(lifespan=lifespan)
 ```
@@ -269,7 +270,7 @@ CREATE TABLE IF NOT EXISTS {{tables.users}} (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS {{indexes.users_email}}
+CREATE INDEX IF NOT EXISTS users_email
 ON {{tables.users}} (email);
 ```
 

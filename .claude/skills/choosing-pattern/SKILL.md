@@ -81,7 +81,8 @@ class MyLibrary:
     async def initialize(self):
         if not self._external_db:
             config = DatabaseConfig(connection_string=self._connection_string)
-            self.db = await AsyncDatabaseManager.create(config)
+            self.db = AsyncDatabaseManager(config)
+            await self.db.connect()
 
         # ALWAYS run migrations
         migrations = AsyncMigrationManager(

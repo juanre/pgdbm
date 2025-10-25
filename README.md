@@ -108,7 +108,8 @@ from pgdbm import AsyncDatabaseManager, DatabaseConfig, AsyncMigrationManager
 
 # Configure and connect
 config = DatabaseConfig(connection_string="postgresql://localhost/myapp")
-db = await AsyncDatabaseManager.create(config)
+db = AsyncDatabaseManager(config)
+await db.connect()
 
 # Apply migrations
 migrations = AsyncMigrationManager(db, migrations_path="./migrations")
@@ -121,7 +122,7 @@ user_id = await db.fetch_val(
 )
 
 # Clean up
-await db.close()
+await db.disconnect()
 ```
 
 ### Migration Files

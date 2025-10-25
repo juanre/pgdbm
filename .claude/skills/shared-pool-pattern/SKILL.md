@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS {{tables.users}} (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS {{indexes.users_email}}
+CREATE INDEX IF NOT EXISTS users_email
     ON {{tables.users}} (email);
 ```
 

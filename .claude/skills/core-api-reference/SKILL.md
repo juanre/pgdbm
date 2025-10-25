@@ -428,7 +428,6 @@ All query methods support template substitution:
 # Available templates
 {{tables.tablename}}   # → "schema".tablename (or tablename if no schema)
 {{schema}}             # → "schema" (or empty)
-{{indexes.indexname}}  # → "schema".indexname
 
 # Example
 query = "SELECT * FROM {{tables.users}} WHERE created_at > $1"

@@ -12,9 +12,9 @@ CREATE TABLE IF NOT EXISTS {{tables.users}} (
 );
 
 -- Create indexes for performance
-CREATE INDEX IF NOT EXISTS {{indexes.users_email}} ON {{tables.users}} (email);
-CREATE INDEX IF NOT EXISTS {{indexes.users_active}} ON {{tables.users}} (is_active) WHERE is_active = true;
-CREATE INDEX IF NOT EXISTS {{indexes.users_created}} ON {{tables.users}} (created_at DESC);
+CREATE INDEX IF NOT EXISTS users_email ON {{tables.users}} (email);
+CREATE INDEX IF NOT EXISTS users_active ON {{tables.users}} (is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS users_created ON {{tables.users}} (created_at DESC);
 
 -- Add updated_at trigger
 CREATE OR REPLACE FUNCTION {{schema}}.update_updated_at_column()

@@ -218,7 +218,7 @@ CREATE TABLE IF NOT EXISTS {{tables.records}} (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS {{indexes.records_created}}
+CREATE INDEX IF NOT EXISTS records_created
     ON {{tables.records}} (created_at);
 ```
 

@@ -385,7 +385,7 @@ User.objects.filter(created_at__gte=date, is_active=True)
 **Solution**: Explicit index creation
 ```sql
 -- In migration file
-CREATE INDEX IF NOT EXISTS {{indexes.users_active_recent}}
+CREATE INDEX IF NOT EXISTS users_active_recent
 ON {{tables.users}} (created_at DESC)
 WHERE is_active = true;
 ```

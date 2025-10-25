@@ -26,13 +26,13 @@ CREATE TABLE IF NOT EXISTS {{tables.order_items}} (
 );
 
 -- Create indexes for performance
-CREATE INDEX IF NOT EXISTS {{indexes.orders_user}} ON {{tables.orders}} (user_id);
-CREATE INDEX IF NOT EXISTS {{indexes.orders_status}} ON {{tables.orders}} (status);
-CREATE INDEX IF NOT EXISTS {{indexes.orders_created}} ON {{tables.orders}} (created_at DESC);
-CREATE INDEX IF NOT EXISTS {{indexes.orders_number}} ON {{tables.orders}} (order_number);
+CREATE INDEX IF NOT EXISTS orders_user ON {{tables.orders}} (user_id);
+CREATE INDEX IF NOT EXISTS orders_status ON {{tables.orders}} (status);
+CREATE INDEX IF NOT EXISTS orders_created ON {{tables.orders}} (created_at DESC);
+CREATE INDEX IF NOT EXISTS orders_number ON {{tables.orders}} (order_number);
 
-CREATE INDEX IF NOT EXISTS {{indexes.order_items_order}} ON {{tables.order_items}} (order_id);
-CREATE INDEX IF NOT EXISTS {{indexes.order_items_product}} ON {{tables.order_items}} (product_id);
+CREATE INDEX IF NOT EXISTS order_items_order ON {{tables.order_items}} (order_id);
+CREATE INDEX IF NOT EXISTS order_items_product ON {{tables.order_items}} (product_id);
 
 -- Add updated_at trigger for orders
 CREATE OR REPLACE FUNCTION {{schema}}.update_orders_updated_at()

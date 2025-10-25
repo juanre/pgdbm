@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS {{tables.daily_revenue}} (
 );
 
 -- Create indexes
-CREATE INDEX IF NOT EXISTS {{indexes.daily_revenue_date}} ON {{tables.daily_revenue}} (date DESC);
+CREATE INDEX IF NOT EXISTS daily_revenue_date ON {{tables.daily_revenue}} (date DESC);
 
 -- Create function to refresh analytics
 CREATE OR REPLACE FUNCTION {{schema}}.refresh_analytics()

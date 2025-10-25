@@ -132,7 +132,6 @@ Always use templates for schema portability:
 -- All template placeholders
 {{tables.tablename}}   -- Table with schema qualification
 {{schema}}             -- Schema name only
-{{indexes.indexname}}  -- Index with schema qualification
 ```
 
 **Example migration:**
@@ -149,10 +148,10 @@ CREATE TABLE IF NOT EXISTS {{tables.users}} (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS {{indexes.users_email}}
+CREATE INDEX IF NOT EXISTS users_email
     ON {{tables.users}} (email);
 
-CREATE INDEX IF NOT EXISTS {{indexes.users_created}}
+CREATE INDEX IF NOT EXISTS users_created
     ON {{tables.users}} (created_at DESC);
 
 -- Trigger using schema placeholder
@@ -185,7 +184,7 @@ CREATE TABLE {{tables.posts}} (
 );
 
 -- If this fails, whole migration rolls back
-CREATE INDEX {{indexes.posts_title}} ON {{tables.posts}} (title);
+CREATE INDEX posts_title ON {{tables.posts}} (title);
 
 COMMIT;
 ```
@@ -195,7 +194,7 @@ COMMIT;
 -- migrations/003_create_index_concurrently.sql
 -- CREATE INDEX CONCURRENTLY cannot run in transaction
 
-CREATE INDEX CONCURRENTLY {{indexes.users_email_concurrent}}
+CREATE INDEX CONCURRENTLY users_email_concurrent
     ON {{tables.users}} (email);
 ```
 
@@ -208,7 +207,8 @@ from pgdbm import AsyncDatabaseManager, AsyncMigrationManager, DatabaseConfig
 
 # Create database manager
 config = DatabaseConfig(connection_string="postgresql://localhost/myapp")
-db = await AsyncDatabaseManager.create(config)
+db = AsyncDatabaseManager(config)
+await db.connect()
 
 # Create migration manager
 migrations = AsyncMigrationManager(
@@ -325,7 +325,7 @@ class Migration:
 ```sql
 -- ✅ CORRECT
 CREATE TABLE {{tables.users}} (...);
-CREATE INDEX {{indexes.users_email}} ON {{tables.users}} (email);
+CREATE INDEX users_email ON {{tables.users}} (email);
 
 -- ❌ WRONG
 CREATE TABLE users (...);
@@ -337,7 +337,7 @@ CREATE TABLE myschema.users (...);
 ```sql
 -- ✅ CORRECT - Can run multiple times safely
 CREATE TABLE IF NOT EXISTS {{tables.users}} (...);
-CREATE INDEX IF NOT EXISTS {{indexes.users_email}} ...;
+CREATE INDEX IF NOT EXISTS users_email ON {{tables.users}} (email);
 
 -- ❌ WRONG - Fails if already exists
 CREATE TABLE {{tables.users}} (...);
@@ -390,13 +390,13 @@ CREATE TABLE IF NOT EXISTS {{tables.posts}} (
 
 ```sql
 -- migrations/002_add_indexes.sql
-CREATE INDEX IF NOT EXISTS {{indexes.users_email}}
+CREATE INDEX IF NOT EXISTS users_email
     ON {{tables.users}} (email);
 
-CREATE INDEX IF NOT EXISTS {{indexes.posts_user_id}}
+CREATE INDEX IF NOT EXISTS posts_user_id
     ON {{tables.posts}} (user_id);
 
-CREATE INDEX IF NOT EXISTS {{indexes.posts_created}}
+CREATE INDEX IF NOT EXISTS posts_created
     ON {{tables.posts}} (created_at DESC);
 ```
 
@@ -500,7 +500,8 @@ elif result["status"] == "up_to_date":
 from pgdbm import AsyncDatabaseManager, AsyncMigrationManager, DatabaseConfig
 
 config = DatabaseConfig(connection_string="postgresql://localhost/myapp")
-db = await AsyncDatabaseManager.create(config)
+db = AsyncDatabaseManager(config)
+await db.connect()
 
 migrations = AsyncMigrationManager(
     db,
@@ -690,7 +691,7 @@ CREATE TABLE {{tables.users}} (...);
 ```sql
 -- CORRECT
 CREATE TABLE IF NOT EXISTS {{tables.users}} (...);
-CREATE INDEX IF NOT EXISTS {{indexes.users_email}} ...;
+CREATE INDEX IF NOT EXISTS users_email ON {{tables.users}} (email);
 ```
 
 ## Migration History

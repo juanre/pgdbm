@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS {{tables.users}} (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS {{indexes.users_email}}
+CREATE INDEX IF NOT EXISTS users_email
     ON {{tables.users}} (email);
 ```
 
@@ -321,7 +321,6 @@ Available in all SQL queries and migration files:
 ```sql
 {{tables.tablename}}  -- Expands to: "schema".tablename (or just tablename if no schema)
 {{schema}}            -- Expands to: "schema" (or empty if no schema)
-{{indexes.indexname}} -- Expands to: "schema".indexname (for CREATE INDEX)
 ```
 
 **How expansion works:**
