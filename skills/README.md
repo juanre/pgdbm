@@ -11,8 +11,13 @@ Claude Code skills for using pgdbm effectively without needing to read documenta
 3. **Implementation skill** - Follow decision from #2:
    - `pgdbm:shared-pool-pattern` - Multi-service apps
    - `pgdbm:dual-mode-library` - PyPI packages
+   - `pgdbm:standalone-service` - Simple services
 4. **`pgdbm:testing-database-code`** - Write tests
 5. **`pgdbm:common-mistakes`** - Avoid footguns
+
+**Need complete API?** Use these reference skills:
+- **`pgdbm:core-api-reference`** - ALL AsyncDatabaseManager methods
+- **`pgdbm:migrations-api-reference`** - ALL AsyncMigrationManager methods
 
 ## Skills Overview
 
@@ -47,6 +52,28 @@ Claude Code skills for using pgdbm effectively without needing to read documenta
 - Conditional cleanup
 - Multi-library composition
 
+**`pgdbm:standalone-service`**
+- Simple single-service setup
+- FastAPI integration
+- Background worker pattern
+- Environment configuration
+
+### API Reference Skills
+
+**`pgdbm:core-api-reference`**
+- Complete AsyncDatabaseManager API (ALL methods)
+- Complete DatabaseConfig parameters
+- TransactionManager API
+- Bulk operations, Pydantic integration
+- SSL, timeouts, retry configuration
+
+**`pgdbm:migrations-api-reference`**
+- Complete AsyncMigrationManager API (ALL methods)
+- Migration file format and naming
+- Checksum validation
+- Development methods
+- Migration table schema
+
 ### Testing & Quality
 
 **`pgdbm:testing-database-code`**
@@ -71,11 +98,15 @@ pgdbm:choosing-pattern (Decision Tree)
     ↓
     ├─ pgdbm:shared-pool-pattern (Multi-service)
     ├─ pgdbm:dual-mode-library (PyPI packages)
-    └─ (pgdbm:standalone-service - not yet implemented)
+    └─ pgdbm:standalone-service (Simple services)
     ↓
 pgdbm:testing-database-code (Testing)
     ↓
 pgdbm:common-mistakes (Prevention)
+
+API Reference (as needed):
+├─ pgdbm:core-api-reference (AsyncDatabaseManager & DatabaseConfig)
+└─ pgdbm:migrations-api-reference (AsyncMigrationManager)
 ```
 
 ## Design Philosophy
@@ -101,15 +132,9 @@ These skills follow the **completeness principle**:
 - Code examples are copy-paste ready
 - Symptom-based debugging sections help troubleshoot
 
-## What's Not Included
+## Complete Skill Set
 
-These skills were deprioritized (covered by existing skills):
-
-- `pgdbm:standalone-service` - Simple case, covered in `using-pgdbm`
-- `pgdbm:core-api-reference` - Complete API included in `using-pgdbm`
-- `pgdbm:migrations-api-reference` - Migration API included in `using-pgdbm`
-
-The current 5 skills cover all critical use cases.
+All 8 planned skills are now implemented with complete API coverage.
 
 ## Future Additions
 
@@ -130,14 +155,17 @@ All skills created following TDD approach from `superpowers:writing-skills`:
 
 | Skill | Lines | Words | Purpose |
 |-------|-------|-------|---------|
-| using-pgdbm | 408 | ~3200 | Mental model + API |
-| choosing-pattern | 288 | ~2100 | Pattern selection |
-| shared-pool-pattern | 417 | ~2500 | Multi-service impl |
-| dual-mode-library | 449 | ~2800 | PyPI package impl |
-| testing-database-code | 507 | ~3000 | Test fixtures |
-| common-mistakes | 360 | ~2400 | Anti-patterns |
+| using-pgdbm | 399 | 1479 | Mental model + quick ref |
+| choosing-pattern | 288 | 1251 | Pattern selection |
+| shared-pool-pattern | 417 | 1222 | Multi-service impl |
+| dual-mode-library | 449 | 1336 | PyPI package impl |
+| standalone-service | 291 | 707 | Simple service impl |
+| testing-database-code | 507 | 1478 | Test fixtures |
+| common-mistakes | 360 | 1407 | Anti-patterns |
+| core-api-reference | 732 | 2343 | Complete AsyncDatabaseManager |
+| migrations-api-reference | 727 | 2121 | Complete AsyncMigrationManager |
 
-Total: ~2429 lines, ~16k words - complete pgdbm reference without docs.
+**Total: 4,170 lines, 13,344 words** - complete pgdbm reference without needing docs.
 
 ## Contributing
 

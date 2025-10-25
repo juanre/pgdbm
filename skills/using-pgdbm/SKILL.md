@@ -271,68 +271,47 @@ If you're about to do any of these, you're missing the mental model:
 
 **All of these mean:** Review the mental model. You're fighting the library instead of using its design.
 
-## Database Manager API
+## Complete API Reference
 
-### Initialization
+**For COMPLETE AsyncDatabaseManager API:** See `pgdbm:core-api-reference` skill
+
+Includes ALL methods:
+- `execute`, `executemany`, `execute_and_return_id`
+- `fetch_one`, `fetch_all`, `fetch_value`
+- `fetch_as_model`, `fetch_all_as_model` (Pydantic)
+- `copy_records_to_table` (bulk operations)
+- `table_exists`, `get_pool_stats`
+- `transaction`, `acquire`
+- Complete DatabaseConfig parameters (SSL, timeouts, retry, etc.)
+
+**For COMPLETE AsyncMigrationManager API:** See `pgdbm:migrations-api-reference` skill
+
+Includes ALL methods:
+- `apply_pending_migrations`, `get_applied_migrations`
+- `get_pending_migrations`, `find_migration_files`
+- `create_migration`, `rollback_migration`
+- `get_migration_history`
+- Migration file format and naming conventions
+- Checksum validation
+
+**Quick reference for most common operations:**
 
 ```python
-# Pattern 1: Create own pool
-AsyncDatabaseManager(config: DatabaseConfig)
-await db.connect()  # Creates pool
-
-# Pattern 2: Use external pool (recommended for production)
-AsyncDatabaseManager(pool: asyncpg.Pool, schema: Optional[str] = None)
-# No connect() needed - pool already exists
-
-# Pattern 3: Create shared pool (for multiple managers)
-pool = await AsyncDatabaseManager.create_shared_pool(config: DatabaseConfig)
-```
-
-### Query Methods
-
-All return dictionaries (not asyncpg Records):
-
-```python
-# Single value
-count: int = await db.fetch_value("SELECT COUNT(*) FROM {{tables.users}}")
-
-# Single row
-user: dict = await db.fetch_one("SELECT * FROM {{tables.users}} WHERE id = $1", user_id)
-# Returns None if not found
-
-# Multiple rows
-users: list[dict] = await db.fetch_all("SELECT * FROM {{tables.users}}")
-
-# No return value
+# Query methods
+count = await db.fetch_value("SELECT COUNT(*) FROM {{tables.users}}")
+user = await db.fetch_one("SELECT * FROM {{tables.users}} WHERE id = $1", user_id)
+users = await db.fetch_all("SELECT * FROM {{tables.users}}")
 await db.execute("DELETE FROM {{tables.users}} WHERE id = $1", user_id)
-```
+user_id = await db.execute_and_return_id("INSERT INTO {{tables.users}} ...", ...)
 
-### Transaction Methods
-
-```python
+# Transactions
 async with db.transaction() as tx:
-    # Same API as db, but all methods on tx object
-    user_id = await tx.fetch_value("INSERT INTO {{tables.users}} ...", ...)
-    await tx.execute("INSERT INTO {{tables.profiles}} ...", ...)
-    # Commits on success, rolls back on exception
-```
+    await tx.execute(...)
+    await tx.fetch_value(...)
 
-## Migration Manager API
-
-```python
-AsyncMigrationManager(
-    db: AsyncDatabaseManager,
-    migrations_path: str,          # Directory with .sql files
-    module_name: str,              # Unique identifier (prevents conflicts)
-)
-
-# Apply all pending migrations
+# Migrations
+migrations = AsyncMigrationManager(db, "migrations", module_name="myapp")
 result = await migrations.apply_pending_migrations()
-# Returns: {"applied": [...], "skipped": [...]}
-
-# Check status
-applied = await migrations.get_applied_migrations()
-# Returns list of migration filenames
 ```
 
 ## Template Syntax Reference
@@ -401,8 +380,20 @@ app = FastAPI(lifespan=lifespan)
 | Multi-tenant SaaS | Shared pool + schemas | Each tenant = separate schema |
 | Testing | Use fixtures | Import from `pgdbm.fixtures.conftest` |
 
-## Next Steps
+## Related Skills
 
-- For complete API: See pgdbm:core-api-reference skill
-- For testing: See pgdbm:testing-database-code skill
-- For anti-patterns: See pgdbm:common-mistakes skill
+**For pattern selection:**
+- `pgdbm:choosing-pattern` - Which pattern for your use case
+
+**For implementation:**
+- `pgdbm:shared-pool-pattern` - Multi-service apps
+- `pgdbm:dual-mode-library` - PyPI packages
+- `pgdbm:standalone-service` - Simple services
+
+**For complete API:**
+- `pgdbm:core-api-reference` - ALL AsyncDatabaseManager methods
+- `pgdbm:migrations-api-reference` - ALL AsyncMigrationManager methods
+
+**For testing and quality:**
+- `pgdbm:testing-database-code` - Test fixtures
+- `pgdbm:common-mistakes` - Anti-patterns
