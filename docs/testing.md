@@ -110,6 +110,35 @@ async def test_with_sample_data(test_db_with_data):
     assert users[0]['email'] == 'alice@example.com'
 ```
 
+### test_db_isolated
+
+Fast rollback-focused testing using a single database:
+
+```python
+async def test_transactional_fixture(test_db_isolated):
+    # test_db_isolated is a TransactionManager with the same API as AsyncDatabaseManager
+    # Create table (this will also be rolled back)
+    await test_db_isolated.execute(
+        "CREATE TABLE users (id SERIAL PRIMARY KEY, email TEXT)"
+    )
+
+    # Insert data
+    await test_db_isolated.execute(
+        "INSERT INTO users (email) VALUES ($1)",
+        "transient@example.com"
+    )
+
+    # The row is visible inside the transaction
+    user = await test_db_isolated.fetch_one(
+        "SELECT * FROM users WHERE email = $1",
+        "transient@example.com"
+    )
+    assert user is not None
+    # All changes (including table creation) roll back when the fixture ends
+```
+
+Use this fixture for speed-sensitive suites where a per-test database would be too costly. It relies on savepoints managed by `TransactionManager`, which now correctly wraps the connection after the Oct 2025 bug fix.
+
 ## Writing Tests
 
 ### Basic CRUD Tests

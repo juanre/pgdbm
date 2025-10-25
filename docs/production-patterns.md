@@ -49,6 +49,8 @@ await db.execute("INSERT INTO {{tables.users}} (email) VALUES ($1)", email)
 await db.execute("INSERT INTO users (email) VALUES ($1)", email)
 ```
 
+> **How schema isolation is enforced:** When you pass `schema="module"` to a manager that shares a pool, pgdbm qualifies tables at query preparation time (the `{{tables.*}}` placeholders expand to `"module".table`). No `search_path` change occurs for those pooled connections. When a manager owns its own pool, the schema is also added to the server settings and `search_path`, but the template expansion still runs so migrations and queries behave identically in both modes.
+
 ## 🏗️ Architecture Patterns
 
 ### Single Service Pattern

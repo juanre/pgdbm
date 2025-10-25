@@ -320,6 +320,15 @@ Notes:
 - Integration tests use ephemeral databases; you can override with env vars like `TEST_DB_HOST`, `TEST_DB_PORT`, `TEST_DB_USER`, `TEST_DB_PASSWORD`.
 - Keep PRs small and focused, include tests/docs for user-visible changes.
 - Style is enforced via Black/Isort/Ruff/Mypy; run pre-commit locally before pushing.
+- New contributors should read the [Repository Guidelines](AGENTS.md) for a concise overview of project structure, tooling, and expectations.
+
+### Testing & Modular Usage at a Glance
+
+- Import `pgdbm.fixtures.conftest` in `tests/conftest.py` to unlock fixtures like `test_db`, `test_db_with_schema`, and `test_db_with_tables`; each test gets a fresh database, while `test_db_isolated` offers a faster transaction/savepoint path when you only need rollback semantics.
+- Use markers (`slow`, `integration`, `unit`) and skip long runs locally with `pytest -m "not slow"`; monitor coverage via `pytest --cov src/pgdbm --cov-report=term-missing`.
+- Libraries and services should accept either a connection string or an injected `AsyncDatabaseManager`, always run their own migrations (`module_name` scoped) and use `{{tables.*}}` templating so the same code works standalone or inside a shared pool; in pooled mode the schema prefix is inserted during query preparation, not via `search_path`, so every statement must use the template helpers.
+- Parent apps create a single shared pool and hand schema-bound managers to each module (`AsyncDatabaseManager(pool=shared_pool, schema="module")`)—library composition is cooperative, meaning the host is responsible for wiring every participating module before they can reference each other.
+- See `docs/testing.md` and `docs/production-patterns.md` for deeper walkthroughs and code samples.
 
 ## License
 

@@ -154,6 +154,7 @@ await library.initialize()
 3. **Use `{{tables.}}` syntax** - Makes migrations/queries portable across schemas
 4. **Use a unique `module_name`** - Isolates migration history
 5. **Clean up conditionally** - Only if you created the connection
+6. **Composition is explicit** - Parent apps (or higher-level libraries) must construct database managers for every participating module and pass them in; pgdbm does not auto-wire nested libraries.
 
 ### Pros and Cons
 
