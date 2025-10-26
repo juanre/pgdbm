@@ -49,6 +49,75 @@ pip install pgdbm
 pip install pgdbm[cli]
 ```
 
+## Claude Code Skills
+
+pgdbm provides **expert guidance skills** for Claude Code that teach Claude how to work with the library effectively. When you use Claude Code with pgdbm, these skills automatically activate to provide:
+
+- ✅ Production-ready code examples
+- ✅ Best practices and patterns
+- ✅ Common pitfalls to avoid
+- ✅ Architecture guidance
+- ✅ Testing strategies
+
+**No manual needed** - just ask Claude naturally and the right skills load automatically!
+
+### Installation
+
+```bash
+# In Claude Code terminal, add the marketplace
+/plugin marketplace add juanre/ai-tools
+
+# Install all pgdbm skills (recommended)
+/plugin install pgdbm@juanre-ai-tools
+
+# Or install individual skills
+/plugin install pgdbm-shared-pool@juanre-ai-tools
+/plugin install pgdbm-testing@juanre-ai-tools
+```
+
+### Available Skills
+
+| Skill | Description | Install |
+|-------|-------------|---------|
+| `pgdbm` | All pgdbm skills (recommended) | `/plugin install pgdbm@juanre-ai-tools` |
+| `pgdbm-choosing-pattern` | Choose the right pattern | `/plugin install pgdbm-choosing-pattern@juanre-ai-tools` |
+| `pgdbm-shared-pool` | Production connection pooling | `/plugin install pgdbm-shared-pool@juanre-ai-tools` |
+| `pgdbm-dual-mode` | Portable database libraries | `/plugin install pgdbm-dual-mode@juanre-ai-tools` |
+| `pgdbm-standalone` | Standalone service pattern | `/plugin install pgdbm-standalone@juanre-ai-tools` |
+| `pgdbm-testing` | Database testing patterns | `/plugin install pgdbm-testing@juanre-ai-tools` |
+| `pgdbm-usage` | Basic operations | `/plugin install pgdbm-usage@juanre-ai-tools` |
+| `pgdbm-core-api` | Complete API reference | `/plugin install pgdbm-core-api@juanre-ai-tools` |
+| `pgdbm-migrations-api` | Migrations API reference | `/plugin install pgdbm-migrations-api@juanre-ai-tools` |
+| `pgdbm-common-mistakes` | Common pitfalls to avoid | `/plugin install pgdbm-common-mistakes@juanre-ai-tools` |
+
+### How It Works
+
+**Example: Setting up a FastAPI app**
+
+**You ask:**
+> "Help me build a FastAPI app with PostgreSQL connection pooling"
+
+**What happens:**
+1. Claude sees "FastAPI", "PostgreSQL", "connection pooling"
+2. Automatically loads `pgdbm-shared-pool` skill
+3. Provides expert guidance with production patterns
+4. Shows you exactly what you need
+
+**Result:** Production-ready code following best practices, with proper pool management and schema isolation!
+
+**Example: Testing database code**
+
+**You ask:**
+> "Show me how to test my database code with fixtures"
+
+**What happens:**
+1. Claude sees "test", "database", "fixtures"
+2. Loads `pgdbm-testing` skill
+3. Guides you through test setup and fixtures
+4. Shows you how to use `test_db` and `test_db_with_schema`
+
+**Result:** Complete test setup with automatic database cleanup and isolation!
+
 ## Quick Start
 
 ### Production-Ready Pattern (Recommended)
