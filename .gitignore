@@ -26,6 +26,8 @@ wheels/
 .coverage
 .coverage.*
 htmlcov/
+.mypy_cache/
+.ruff_cache/
 .tox/
 .venv/
 venv/
@@ -50,3 +52,7 @@ Thumbs.db
 Makefile
 tmp
 .beadhub
+.beadhub-cache/
+*.swp
+*.swo
+*.swn
