@@ -255,7 +255,8 @@ if await db.table_exists("users"):
 
 ##### async copy_records_to_table(table_name: str, records: list[tuple], columns: Optional[list[str]] = None) -> int
 Efficiently bulk insert records using PostgreSQL COPY. Pass the unqualified table
-name (schema is applied automatically), and ensure record tuples match the column order.
+name (schema is applied automatically). Do not include a schema-qualified name; set
+`schema` on the database manager instead. Ensure record tuples match the column order.
 
 ```python
 records = [

@@ -896,11 +896,18 @@ class AsyncDatabaseManager:
         This is much faster than individual INSERTs for bulk data.
         Table name should be the unqualified table identifier; schema is applied automatically.
         """
-        qualified_table = self._prepare_query(f"{{{{tables.{table_name}}}}}")
+        if "." in table_name:
+            raise ValueError(
+                "copy_records_to_table expects an unqualified table name; "
+                "configure schema on the manager instead."
+            )
 
         async with self.acquire() as conn:
             result = await conn.copy_records_to_table(
-                qualified_table, records=records, columns=columns
+                table_name,
+                records=records,
+                columns=columns,
+                schema_name=self.schema,
             )
             # asyncpg returns a string like "COPY 5", extract the number
             if isinstance(result, str) and result.startswith("COPY "):

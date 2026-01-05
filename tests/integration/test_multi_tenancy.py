@@ -111,6 +111,27 @@ class TestSchemaIsolation:
         assert schema_check["table_schema"] == "test_schema"
 
     @pytest.mark.asyncio
+    async def test_copy_records_respects_schema(self, test_db_with_schema):
+        """Ensure COPY honors the manager schema in shared-pool mode."""
+        await test_db_with_schema.execute(
+            """
+            CREATE TABLE {{tables.events}} (
+                id SERIAL PRIMARY KEY,
+                event_type VARCHAR(50) NOT NULL
+            )
+        """
+        )
+
+        events = [("page_view",), ("click",), ("signup",)]
+        rows_inserted = await test_db_with_schema.copy_records_to_table(
+            "events", records=events, columns=["event_type"]
+        )
+
+        assert rows_inserted == len(events)
+        count = await test_db_with_schema.fetch_value("SELECT COUNT(*) FROM {{tables.events}}")
+        assert count == len(events)
+
+    @pytest.mark.asyncio
     async def test_cross_schema_queries(self, test_db):
         """Test queries across multiple schemas."""
         # Create main schema and shared schema
