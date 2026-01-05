@@ -251,7 +251,7 @@ async def create_user(
     email: str,
     db: DatabaseDep,  # Clean dependency injection
 ):
-    user_id = await db.fetch_val(
+    user_id = await db.fetch_value(
         "INSERT INTO {{tables.users}} (email) VALUES ($1) RETURNING id",
         email
     )
@@ -327,7 +327,7 @@ async def test_db():
 
 # tests/test_users.py
 async def test_create_user(test_db):
-    user_id = await test_db.fetch_val(
+    user_id = await test_db.fetch_value(
         "INSERT INTO {{tables.users}} (email) VALUES ($1) RETURNING id",
         "test@example.com"
     )
@@ -552,7 +552,7 @@ await pool.close()
 ### Query Patterns
 ```python
 # Single value
-count = await db.fetch_val("SELECT COUNT(*) FROM {{tables.users}}")
+count = await db.fetch_value("SELECT COUNT(*) FROM {{tables.users}}")
 
 # Single row
 user = await db.fetch_one("SELECT * FROM {{tables.users}} WHERE id = $1", user_id)

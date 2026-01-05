@@ -65,6 +65,10 @@ class TransactionManager:
         query = self._db.prepare_query(query)
         await self._conn.executemany(query, args)
 
+    async def execute_many(self, query: str, args_list: list[tuple]) -> None:
+        """Compatibility alias for executemany()."""
+        await self.executemany(query, args_list)
+
     async def fetch_all(
         self, query: str, *args: Any, timeout: Optional[float] = None
     ) -> list[dict[str, Any]]:
@@ -95,6 +99,12 @@ class TransactionManager:
         if timeout is not None:
             return await self._conn.fetchval(query, *args, column=column, timeout=timeout)
         return await self._conn.fetchval(query, *args, column=column)
+
+    async def fetch_val(
+        self, query: str, *args: Any, column: int = 0, timeout: Optional[float] = None
+    ) -> Any:
+        """Compatibility alias for fetch_value()."""
+        return await self.fetch_value(query, *args, column=column, timeout=timeout)
 
     @asynccontextmanager
     async def transaction(self) -> AsyncIterator["TransactionManager"]:
@@ -721,6 +731,10 @@ class AsyncDatabaseManager:
                 original_error=e,
             ) from e
 
+    async def execute_many(self, query: str, args_list: list[tuple]) -> None:
+        """Compatibility alias for executemany()."""
+        await self.executemany(query, args_list)
+
     async def fetch_one(
         self, query: str, *args: Any, timeout: Optional[float] = None
     ) -> Optional[dict[str, Any]]:
@@ -779,6 +793,12 @@ class AsyncDatabaseManager:
             raise QueryError(
                 "Failed to fetch value", query=query, params=args, original_error=e
             ) from e
+
+    async def fetch_val(
+        self, query: str, *args: Any, column: int = 0, timeout: Optional[float] = None
+    ) -> Any:
+        """Compatibility alias for fetch_value()."""
+        return await self.fetch_value(query, *args, column=column, timeout=timeout)
 
     async def execute_and_return_id(self, query: str, *args: Any) -> Any:
         """Execute an INSERT and return the ID."""

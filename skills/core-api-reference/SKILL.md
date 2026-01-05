@@ -399,6 +399,10 @@ async with db.transaction() as tx:
 | `disconnect` | - | None | Close pool (config-based only) |
 | `create_shared_pool` | config | asyncpg.Pool | Class method: create shared pool |
 
+**Compatibility aliases**
+- `fetch_val(...)` → `fetch_value(...)`
+- `execute_many(...)` → `executemany(...)`
+
 ### TransactionManager - All Methods
 
 | Method | Parameters | Returns |

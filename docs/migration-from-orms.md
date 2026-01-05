@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS {{tables.users}} (
 """
 
 # Usage - direct SQL with type safety
-user_id = await db.fetch_val(
+user_id = await db.fetch_value(
     "INSERT INTO {{tables.users}} (email, name) VALUES ($1, $2) RETURNING id",
     'test@example.com', 'Test User'
 )
@@ -145,7 +145,7 @@ class UserService:
         self.db = db
 
     async def create_user(self, email: str, name: str) -> int:
-        return await self.db.fetch_val(
+        return await self.db.fetch_value(
             """INSERT INTO {{tables.users}} (email, name, is_active)
                VALUES ($1, $2, true) RETURNING id""",
             email, name
@@ -183,7 +183,7 @@ class UserService:
    User.objects.filter(created_at__gte=date).count()
 
    # pgdbm
-   count = await db.fetch_val(
+   count = await db.fetch_value(
        "SELECT COUNT(*) FROM {{tables.users}} WHERE created_at >= $1",
        date
    )

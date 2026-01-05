@@ -16,9 +16,11 @@ The library provides:
 ### Install Test Dependencies
 
 ```bash
-pip install pgdbm[test]
-# or
+pip install pgdbm
 pip install pytest pytest-asyncio
+
+# Optional: install CLI extras if you use the `pgdbm` command
+pip install "pgdbm[cli]"
 ```
 
 ### Configure pytest

@@ -46,9 +46,9 @@ from pgdbm import AsyncMigrationManager
 migrations = AsyncMigrationManager(db, migrations_path="./migrations")
 
 # Apply all pending migrations
-results = await migrations.apply_pending_migrations()
-for result in results:
-    print(f"Applied: {result.filename} in {result.execution_time_ms}ms")
+result = await migrations.apply_pending_migrations()
+for migration in result["applied"]:
+    print(f"Applied: {migration['filename']} in {migration['execution_time_ms']}ms")
 ```
 
 ## Writing Migrations
@@ -174,8 +174,9 @@ The replacement depends on how the AsyncDatabaseManager was created:
 db = AsyncDatabaseManager(config)
 # {{tables.users}} → users
 
-# With explicit schema
-db = AsyncDatabaseManager(config, schema="myapp")
+# With explicit schema (owned pool)
+config = DatabaseConfig(connection_string="postgresql://localhost/myapp", schema="myapp")
+db = AsyncDatabaseManager(config)
 # {{tables.users}} → myapp.users
 
 # Shared pool with schema

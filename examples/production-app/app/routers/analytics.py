@@ -14,13 +14,13 @@ router = APIRouter(prefix="/analytics")
 async def get_user_stats(db: UsersDB):
     """Get user statistics."""
     # Total users
-    total = await db.fetch_val("SELECT COUNT(*) FROM {{tables.users}}")
+    total = await db.fetch_value("SELECT COUNT(*) FROM {{tables.users}}")
 
     # Active users
-    active = await db.fetch_val("SELECT COUNT(*) FROM {{tables.users}} WHERE is_active = true")
+    active = await db.fetch_value("SELECT COUNT(*) FROM {{tables.users}} WHERE is_active = true")
 
     # New users today
-    today = await db.fetch_val(
+    today = await db.fetch_value(
         """
         SELECT COUNT(*) FROM {{tables.users}}
         WHERE created_at >= CURRENT_DATE
@@ -28,7 +28,7 @@ async def get_user_stats(db: UsersDB):
     )
 
     # New users this week
-    week = await db.fetch_val(
+    week = await db.fetch_value(
         """
         SELECT COUNT(*) FROM {{tables.users}}
         WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
@@ -36,7 +36,7 @@ async def get_user_stats(db: UsersDB):
     )
 
     # New users this month
-    month = await db.fetch_val(
+    month = await db.fetch_value(
         """
         SELECT COUNT(*) FROM {{tables.users}}
         WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
@@ -70,7 +70,7 @@ async def get_order_stats(db: OrdersDB):
     total = sum(status_map.values())
 
     # Orders today
-    today = await db.fetch_val(
+    today = await db.fetch_value(
         """
         SELECT COUNT(*) FROM {{tables.orders}}
         WHERE created_at >= CURRENT_DATE
@@ -78,7 +78,7 @@ async def get_order_stats(db: OrdersDB):
     )
 
     # Orders this week
-    week = await db.fetch_val(
+    week = await db.fetch_value(
         """
         SELECT COUNT(*) FROM {{tables.orders}}
         WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
@@ -86,7 +86,7 @@ async def get_order_stats(db: OrdersDB):
     )
 
     # Orders this month
-    month = await db.fetch_val(
+    month = await db.fetch_value(
         """
         SELECT COUNT(*) FROM {{tables.orders}}
         WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
@@ -109,7 +109,7 @@ async def get_order_stats(db: OrdersDB):
 async def get_revenue_stats(db: OrdersDB):
     """Get revenue statistics."""
     # Total revenue (excluding cancelled orders)
-    total = await db.fetch_val(
+    total = await db.fetch_value(
         """
         SELECT COALESCE(SUM(total_amount), 0)
         FROM {{tables.orders}}
@@ -118,7 +118,7 @@ async def get_revenue_stats(db: OrdersDB):
     )
 
     # Revenue today
-    today = await db.fetch_val(
+    today = await db.fetch_value(
         """
         SELECT COALESCE(SUM(total_amount), 0)
         FROM {{tables.orders}}
@@ -128,7 +128,7 @@ async def get_revenue_stats(db: OrdersDB):
     )
 
     # Revenue this week
-    week = await db.fetch_val(
+    week = await db.fetch_value(
         """
         SELECT COALESCE(SUM(total_amount), 0)
         FROM {{tables.orders}}
@@ -138,7 +138,7 @@ async def get_revenue_stats(db: OrdersDB):
     )
 
     # Revenue this month
-    month = await db.fetch_val(
+    month = await db.fetch_value(
         """
         SELECT COALESCE(SUM(total_amount), 0)
         FROM {{tables.orders}}
@@ -148,7 +148,7 @@ async def get_revenue_stats(db: OrdersDB):
     )
 
     # Average order value
-    avg = await db.fetch_val(
+    avg = await db.fetch_value(
         """
         SELECT COALESCE(AVG(total_amount), 0)
         FROM {{tables.orders}}

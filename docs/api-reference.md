@@ -146,6 +146,8 @@ await db.execute(
 ##### async executemany(query: str, args_list: list[tuple]) -> None
 Execute a query with multiple parameter sets.
 
+Compatibility alias: `execute_many(query, args_list)`
+
 ```python
 await db.executemany(
     "INSERT INTO users (email, name) VALUES ($1, $2)",
@@ -183,6 +185,8 @@ for user in users:
 
 ##### async fetch_value(query: str, *args: Any, column: int = 0, timeout: Optional[float] = None) -> Any
 Fetch a single value from the first row.
+
+Compatibility alias: `fetch_val(query, *args, column=0, timeout=None)`
 
 ```python
 count = await db.fetch_value("SELECT COUNT(*) FROM users")
@@ -351,6 +355,22 @@ async with db.transaction() as tx:
     )
 ```
 
+##### async executemany(query: str, args_list: list[tuple]) -> None
+Execute a query with multiple parameter sets.
+
+Compatibility alias: `execute_many(query, args_list)`
+
+```python
+async with db.transaction() as tx:
+    await tx.executemany(
+        "INSERT INTO {{tables.users}} (email, name) VALUES ($1, $2)",
+        [
+            ("alice@example.com", "Alice"),
+            ("bob@example.com", "Bob"),
+        ],
+    )
+```
+
 ##### async fetch_one(query: str, *args: Any, timeout: Optional[float] = None) -> Optional[dict[str, Any]]
 Fetch a single row as a dictionary.
 
@@ -378,6 +398,8 @@ async with db.transaction() as tx:
 
 ##### async fetch_value(query: str, *args: Any, column: int = 0, timeout: Optional[float] = None) -> Any
 Fetch a single value from the first row.
+
+Compatibility alias: `fetch_val(query, *args, column=0, timeout=None)`
 
 ```python
 async with db.transaction() as tx:

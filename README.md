@@ -161,7 +161,7 @@ app = FastAPI(lifespan=lifespan)
 @app.post("/users")
 async def create_user(email: str, request: Request):
     db = request.app.state.dbs['users']
-    user_id = await db.fetch_val(
+    user_id = await db.fetch_value(
         "INSERT INTO {{tables.users}} (email) VALUES ($1) RETURNING id",
         email
     )
@@ -185,7 +185,7 @@ migrations = AsyncMigrationManager(db, migrations_path="./migrations")
 await migrations.apply_pending_migrations()
 
 # Use your database
-user_id = await db.fetch_val(
+user_id = await db.fetch_value(
     "INSERT INTO {{tables.users}} (email) VALUES ($1) RETURNING id",
     "user@example.com"
 )

@@ -58,7 +58,7 @@ UserDB = Annotated[AsyncDatabaseManager, Depends(get_users_db)]
 # Routes
 @app.post("/users")
 async def create_user(email: str, db: UserDB):
-    user_id = await db.fetch_val(
+    user_id = await db.fetch_value(
         "INSERT INTO {{tables.users}} (email) VALUES ($1) RETURNING id",
         email
     )
@@ -177,7 +177,7 @@ async def db():
 
 # Test function
 async def test_user_creation(db):
-    user_id = await db.fetch_val(
+    user_id = await db.fetch_value(
         "INSERT INTO {{tables.users}} (email) VALUES ($1) RETURNING id",
         "test@example.com"
     )
@@ -258,7 +258,7 @@ stats = pool.get_stats()
 print(f"Active: {stats['active']}, Idle: {stats['idle']}")
 
 # Check current schema
-schema = await db.fetch_val("SELECT current_schema()")
+schema = await db.fetch_value("SELECT current_schema()")
 
 # List all tables in schema
 tables = await db.fetch_all("""
