@@ -127,13 +127,14 @@ Start → How many services?
 
 ```python
 # Fetch operations
-value = await db.fetch_val("SELECT COUNT(*) FROM {{tables.users}}")
+value = await db.fetch_value("SELECT COUNT(*) FROM {{tables.users}}")
 row = await db.fetch_one("SELECT * FROM {{tables.users}} WHERE id = $1", 1)
 rows = await db.fetch_all("SELECT * FROM {{tables.users}}")
 
 # Write operations
 await db.execute("INSERT INTO {{tables.users}} (email) VALUES ($1)", email)
-await db.execute_many("INSERT INTO {{tables.users}} (email) VALUES ($1)", emails)
+emails = [("alice@example.com",), ("bob@example.com",)]
+await db.executemany("INSERT INTO {{tables.users}} (email) VALUES ($1)", emails)
 
 # Transactions
 async with db.transaction():

@@ -21,3 +21,69 @@ Modules should support both standalone and embedded usage. Accept either a conne
 
 ## Commit & Pull Request Guidelines
 Follow the Conventional Commits style already in history (`fix:`, `docs:`, `chore:`) with imperative subjects under 72 characters and focused diffs. Each PR should include a concise summary, reference related issues, and call out schema or API impacts. Attach test evidence such as `pytest` output or coverage summaries, and update docs or examples whenever behaviour changes. Screenshots or logs are helpful when showcasing CLI output or migration results.
+
+# Agent Instructions (dispatcher)
+
+This repo uses `bdh` (BeadHub) for coordination and issue tracking.
+
+Keep this file stable and minimal: the active project policy (invariants + role playbooks) lives on the server and is shown via `bdh :policy`.
+
+## Start Here (Every Session)
+
+```bash
+bdh :status                 # who am I? (alias/workspace/role) + team status
+bdh :inbox --json           # check mail
+bdh :policy                 # invariants + your role playbook
+bdh ready --json            # find unblocked work
+```
+
+If `bdh :policy` isn’t available in your installed `bdh` yet, build and use the repo version:
+
+```bash
+make bdh
+./bdh/bdh :policy
+```
+
+## Minimal Rules
+
+- Use `bdh` (not `bd`) so work is coordinated and synced.
+- Default to mail (`bdh :send`) for coordination; use chat (`bdh :chat`) only when blocked/urgent.
+- Respond immediately to WAITING notifications — someone is blocked.
+- Don’t overwrite other agents’ work without coordinating first.
+
+## Critical: don’t impersonate another workspace
+
+`bdh` derives your identity from the `.beadhub` file in the current worktree.
+
+- Only run `bdh` from the worktree that contains **your** `.beadhub`.
+- If you `cd` into another worktree/repo and run `bdh`, you may impersonate that workspace’s agent.
+
+## Auth / tenant scoping (security)
+
+When auth is enabled, BeadHub APIs are project-scoped via `X-Project-ID` (not `project_slug`). Ensure your `.beadhub` has a valid `project_id` (re-run `bdh :init` if needed).
+
+## Landing the Plane (Session Completion)
+
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+
+**MANDATORY WORKFLOW:**
+
+1. **File issues for remaining work** - Create issues for anything that needs follow-up
+2. **Run quality gates** (if code changed) - Tests, linters, builds
+3. **Update issue status** - Close finished work, update in-progress items
+4. **PUSH TO REMOTE** - This is MANDATORY:
+   ```bash
+   git pull --rebase
+   bdh sync
+   git push
+   git status  # MUST show "up to date with origin"
+   ```
+5. **Clean up** - Clear stashes, prune remote branches
+6. **Verify** - All changes committed AND pushed
+7. **Hand off** - Provide context for next session
+
+**CRITICAL RULES:**
+- Work is NOT complete until `git push` succeeds
+- NEVER stop before pushing - that leaves work stranded locally
+- NEVER say "ready to push when you are" - YOU must push
+- If push fails, resolve and retry until it succeeds

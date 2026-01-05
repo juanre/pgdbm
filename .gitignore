@@ -24,6 +24,7 @@ wheels/
 *.egg
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
 .venv/
@@ -48,3 +49,4 @@ Thumbs.db
 
 Makefile
 tmp
+.beadhub
