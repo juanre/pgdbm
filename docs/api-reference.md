@@ -641,13 +641,15 @@ debugger = DatabaseDebugger(db_manager)
 
 #### Methods
 
-##### async get_connection_info() -> dict[str, Any]
-Get current connection statistics.
+##### async check_connection_health() -> dict[str, Any]
+Comprehensive health check of database connections. Returns status, connectivity info, pool stats, blocking queries, and long-running queries.
 
 ```python
-info = await debugger.get_connection_info()
-print(f"Active connections: {info['active_connections']}")
-print(f"Idle connections: {info['idle_connections']}")
+health = await debugger.check_connection_health()
+print(f"Status: {health['status']}")  # 'healthy', 'degraded', or 'unhealthy'
+print(f"Connectivity: {health['checks']['connectivity']['status']}")
+print(f"Blocking queries: {health['checks']['blocking_queries']['count']}")
+print(f"Long-running queries: {health['checks']['long_running_queries']['count']}")
 ```
 
 ##### async find_blocking_queries() -> list[dict[str, Any]]
@@ -676,26 +678,6 @@ Get table sizes and statistics.
 tables = await debugger.analyze_table_sizes()
 for table in tables:
     print(f"{table['tablename']}: {table['size']} ({table['row_count']} rows)")
-```
-
-##### async check_index_usage(table_name: str) -> list[dict[str, Any]]
-Analyze index usage for a table.
-
-```python
-indexes = await debugger.check_index_usage("users")
-for idx in indexes:
-    print(f"{idx['indexname']}: {idx['idx_scan']} scans, {idx['idx_tup_read']} tuples read")
-```
-
-##### async get_database_health() -> dict[str, Any]
-Get overall database health metrics.
-
-```python
-health = await debugger.get_database_health()
-if health['blocking_queries'] > 0:
-    print(f"Warning: {health['blocking_queries']} blocking queries found")
-if health['long_running_queries'] > 0:
-    print(f"Warning: {health['long_running_queries']} long-running queries found")
 ```
 
 ## Testing Utilities

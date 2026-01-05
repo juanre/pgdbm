@@ -253,7 +253,7 @@ async def test_db_with_data(
     yield db
 
 
-@pytest.fixture
+@pytest.fixture  # type: ignore[misc]
 def db_test_utils(test_db: AsyncDatabaseManager) -> DatabaseTestCase:
     """
     Provides database test utilities for assertions and helpers.

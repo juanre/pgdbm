@@ -90,6 +90,7 @@ ensure_newline_before_comments = true
 
 [tool.mypy]
 python_version = "3.9"
+mypy_path = "src"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -117,6 +118,10 @@ exclude = [
 [[tool.mypy.overrides]]
 module = "tests.*"
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["pytest.*", "_pytest.*"]
+follow_imports = "skip"
 
 [tool.ruff]
 target-version = "py39"
@@ -148,6 +153,8 @@ known-first-party = ["pgdbm", "app", "services", "shared"]
 branch = true
 source = ["src/pgdbm"]
 omit = ["*/tests/*", "*/test_*.py"]
+parallel = true
+concurrency = ["multiprocessing", "thread"]
 
 [tool.coverage.report]
 precision = 2

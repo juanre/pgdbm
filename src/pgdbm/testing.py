@@ -280,7 +280,7 @@ class AsyncTestDatabase:
                 result: str = await original_execute(*args, **kwargs)
                 return result
 
-            db_manager.execute = tracked_execute
+            db_manager.execute = tracked_execute  # type: ignore[method-assign]
 
         await db_manager.connect()
 

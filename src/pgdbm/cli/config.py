@@ -156,7 +156,7 @@ def get_env_config_from_env() -> Optional[EnvironmentConfig]:
     url = os.environ.get("DATABASE_URL")
     if not url:
         return None
-    return EnvironmentConfig(url=url)
+    return EnvironmentConfig(url=url)  # type: ignore[call-arg]
 
 
 def get_module_config(config: Optional[Config], module: str) -> Optional[ModuleConfig]:

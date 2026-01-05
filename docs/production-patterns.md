@@ -480,14 +480,13 @@ from pgdbm import MonitoredAsyncDatabaseManager
 db = MonitoredAsyncDatabaseManager(
     pool=shared_pool,
     schema="myapp",
-    slow_query_threshold=1.0,  # Log queries slower than 1 second
+    slow_query_threshold_ms=1000,  # Track queries slower than 1 second
 )
 
-# Set up monitoring callback
-def log_slow_query(query: str, duration: float):
-    logger.warning(f"Slow query ({duration:.2f}s): {query}")
-
-db.set_slow_query_callback(log_slow_query)
+# Check for slow queries periodically
+slow_queries = db.get_slow_queries()
+for query in slow_queries:
+    logger.warning(f"Slow query ({query.duration_ms}ms): {query.query}")
 ```
 
 ## 🔧 Troubleshooting
@@ -581,4 +580,4 @@ await db.execute("DELETE FROM {{tables.users}} WHERE id = $1", user_id)
 
 ---
 
-*Based on real-world production experience. Last updated: 2024*
+*Based on real-world production experience. Last updated: 2026*

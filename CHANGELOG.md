@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-01-05
+
 ### Added
 - `TransactionManager` wrapper class for transactions with automatic template substitution
   - Returned by `AsyncDatabaseManager.transaction()` context manager
@@ -22,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Supports numeric prefix (001_), Flyway style (V1__), and timestamp patterns
   - Automatic version property on Migration model
   - Better ordering and conflict prevention
+- `fetch_val()` and `execute_many()` compatibility aliases
 
 ### Changed
 - **BREAKING**: `AsyncDatabaseManager.transaction()` now returns `TransactionManager` instead of raw `asyncpg.Connection`
@@ -41,6 +44,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Transaction template substitution now works correctly - `{{tables.}}` syntax applies automatically within transactions
 - Example code in microservices (inventory and orders services) fixed to properly use transactions
 - Migrations now use `TransactionManager` internally for consistent template handling
+- Schema name validation at configuration time prevents SQL injection
+- `copy_records_to_table` now correctly honors schema setting
+- CLI `migrate apply` works without config file
+- CLI works when event loop is already running
+- Sensitive data no longer retained in query monitoring history
+- Documentation aligned with actual API
+
+### Security
+- Schema identifiers validated against PostgreSQL naming rules before SQL use
+- Monitoring `schema_filter` SQL injection vulnerability fixed
+- Query arguments masked in error messages to prevent credential exposure
 
 ## [0.1.0] - 2025-01-26
 
@@ -64,5 +78,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Testing utilities**: Automatic test database creation and cleanup
 - **Schema isolation**: Multi-tenant support with `{{tables.name}}` templating
 
-[Unreleased]: https://github.com/juanreyero/pgdbm/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/juanreyero/pgdbm/releases/tag/v0.1.0
+[Unreleased]: https://github.com/juanre/pgdbm/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/juanre/pgdbm/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/juanre/pgdbm/releases/tag/v0.1.0
