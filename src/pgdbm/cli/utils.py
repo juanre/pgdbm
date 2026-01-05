@@ -2,6 +2,8 @@
 
 import asyncio
 from collections.abc import Coroutine
+from concurrent.futures import Future
+from threading import Thread
 from typing import Any, Optional, TypeVar
 
 from pgdbm import DatabaseConfig
@@ -22,7 +24,22 @@ def run_async(coro: Coroutine[Any, Any, T]) -> T:
     """
     try:
         loop = asyncio.get_running_loop()
-        # We're already in an async context
+        # If a loop is running in this thread, we can't call run_until_complete().
+        # Run the coroutine in a fresh event loop on a helper thread instead.
+        if loop.is_running():
+            future: Future[T] = Future()
+
+            def _runner() -> None:
+                try:
+                    future.set_result(asyncio.run(coro))
+                except BaseException as exc:  # pragma: no cover - defensive
+                    future.set_exception(exc)
+
+            thread = Thread(target=_runner, name="pgdbm-cli-run-async")
+            thread.start()
+            thread.join()
+            return future.result()
+
         return loop.run_until_complete(coro)
     except RuntimeError:
         # No running loop, create one
