@@ -35,11 +35,10 @@ class TestSQLInjectionProtection:
         ]
 
         for malicious_schema in malicious_schemas:
-            config = DatabaseConfig(schema=malicious_schema)
-            db = AsyncDatabaseManager(config=config)
-
             with pytest.raises(SchemaError) as exc_info:
-                db._prepare_query("SELECT * FROM {{tables.users}}")
+                config = DatabaseConfig(schema=malicious_schema)
+                db = AsyncDatabaseManager(config=config)
+                db.prepare_query("SELECT * FROM {{tables.users}}")
 
             assert "Invalid schema name" in str(exc_info.value)
             assert malicious_schema in str(exc_info.value)

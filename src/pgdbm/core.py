@@ -25,6 +25,17 @@ from pgdbm.errors import ConfigurationError, ConnectionError, PoolError, QueryEr
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
+SCHEMA_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
+
+
+def _validate_schema_name(schema: str) -> None:
+    """Validate schema name for PostgreSQL identifier safety."""
+    if not SCHEMA_NAME_PATTERN.match(schema):
+        raise SchemaError(
+            f"Invalid schema name '{schema}'. Schema names must start with a "
+            "letter or underscore and contain only letters, numbers, and underscores.",
+            schema=schema,
+        )
 
 
 class TransactionManager:
@@ -203,6 +214,11 @@ class DatabaseConfig(BaseModel):
     )
     retry_max_delay: float = Field(default=30.0, description="Maximum delay between retries")
 
+    def model_post_init(self, __context: Any) -> None:
+        """Validate schema name early to prevent unsafe SQL usage."""
+        if self.schema_name:
+            _validate_schema_name(self.schema_name)
+
     def get_dsn(self) -> str:
         """Get the database connection string (DSN)."""
         if self.connection_string:
@@ -372,6 +388,9 @@ class AsyncDatabaseManager:
             # Using external pool - create minimal config
             self.config = None  # type: ignore[assignment]
             self.schema = schema or "public"
+
+        if self.schema:
+            _validate_schema_name(self.schema)
 
         self._prepared_statements: dict[str, str] = {}
         self._debug = os.environ.get("DB_DEBUG", "").lower() in ("1", "true", "yes")
@@ -600,14 +619,7 @@ class AsyncDatabaseManager:
         """
         # Validate schema name if provided
         if self.schema:
-            # PostgreSQL identifier rules: start with letter/underscore,
-            # contain letters/numbers/underscores, max 63 chars
-            if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$", self.schema):
-                raise SchemaError(
-                    f"Invalid schema name '{self.schema}'. Schema names must start with a "
-                    "letter or underscore and contain only letters, numbers, and underscores.",
-                    schema=self.schema,
-                )
+            _validate_schema_name(self.schema)
 
         if not self.schema:
             # Remove schema placeholders when no schema specified

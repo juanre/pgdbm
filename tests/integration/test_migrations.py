@@ -7,6 +7,7 @@ Integration tests for database migration features.
 These tests demonstrate how to use the migration system in real applications.
 """
 
+import asyncio
 import os
 import tempfile
 from pathlib import Path
@@ -252,6 +253,58 @@ class TestMigrationManagement:
             assert "products" in table_names
             assert "categories" in table_names
             assert "product_categories" in table_names
+
+    @pytest.mark.asyncio
+    async def test_migration_lock_serializes_apply(self, test_db, tmp_path):
+        """Ensure advisory lock blocks concurrent migration application."""
+        migrations_dir = tmp_path / "migrations"
+        migrations_dir.mkdir()
+
+        migration_content = """
+        SELECT pg_sleep(0.2);
+        CREATE TABLE lock_test (id INT);
+        """
+        (migrations_dir / "001_lock_test.sql").write_text(migration_content)
+
+        manager1 = AsyncMigrationManager(
+            test_db, migrations_path=str(migrations_dir), module_name="lock_test"
+        )
+        manager2 = AsyncMigrationManager(
+            test_db, migrations_path=str(migrations_dir), module_name="lock_test"
+        )
+
+        first_apply_started = asyncio.Event()
+        second_apply_started = asyncio.Event()
+
+        original_apply1 = manager1._apply_migration_on
+
+        async def wrapped_apply1(conn, migration):
+            first_apply_started.set()
+            return await original_apply1(conn, migration)
+
+        manager1._apply_migration_on = wrapped_apply1  # type: ignore[assignment]
+
+        original_apply2 = manager2._apply_migration_on
+
+        async def wrapped_apply2(conn, migration):
+            second_apply_started.set()
+            return await original_apply2(conn, migration)
+
+        manager2._apply_migration_on = wrapped_apply2  # type: ignore[assignment]
+
+        task1 = asyncio.create_task(manager1.apply_pending_migrations())
+        await asyncio.wait_for(first_apply_started.wait(), timeout=1)
+
+        task2 = asyncio.create_task(manager2.apply_pending_migrations())
+
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(second_apply_started.wait(), timeout=0.05)
+
+        result1 = await task1
+        result2 = await task2
+
+        assert result1["status"] == "success"
+        assert result2["status"] == "up_to_date"
 
     @pytest.mark.asyncio
     async def test_failed_migration_rollback(self, test_db):
