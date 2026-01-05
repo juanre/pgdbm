@@ -12,7 +12,12 @@ if TYPE_CHECKING:
 
 from pgdbm import AsyncDatabaseManager, AsyncMigrationManager
 
-from ..config import get_env_config, get_module_config, resolve_module_order
+from ..config import (
+    get_env_config,
+    get_env_config_from_env,
+    get_module_config,
+    resolve_module_order,
+)
 from ..utils import get_connection_config, run_async
 
 
@@ -41,9 +46,12 @@ def apply(ctx: click.Context, module: Optional[str], apply_all: bool, dry_run: b
             )
             ctx.exit(1)
 
-        env_config = get_env_config(config, env)
+        env_config = get_env_config_from_env()
         if not env_config:
-            click.echo(f"Error: No configuration for environment '{env}'", err=True)
+            click.echo(
+                "Error: DATABASE_URL is required for simple mode (or provide --config).",
+                err=True,
+            )
             ctx.exit(1)
 
         _apply_simple_migrations(env_config, migrations_path, dry_run)
@@ -180,8 +188,16 @@ def status(ctx: click.Context, module: Optional[str], all_modules: bool) -> None
     env = ctx.obj["env"]
 
     env_config = get_env_config(config, env)
+    if not env_config and not config:
+        env_config = get_env_config_from_env()
     if not env_config:
-        click.echo(f"Error: No configuration for environment '{env}'", err=True)
+        if config:
+            click.echo(f"Error: No configuration for environment '{env}'", err=True)
+        else:
+            click.echo(
+                "Error: DATABASE_URL is required for simple mode (or provide --config).",
+                err=True,
+            )
         ctx.exit(1)
 
     if not config or (not module and not all_modules):

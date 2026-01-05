@@ -166,7 +166,7 @@ modules = ["users", "billing"]
 
 - `PGDBM_CONFIG` - Path to configuration file (default: pgdbm.toml)
 - `PGDBM_ENV` - Environment to use (default: dev)
-- `DATABASE_URL` - Can be referenced in config as ${DATABASE_URL}
+- `DATABASE_URL` - Can be referenced in config as ${DATABASE_URL} and used directly in simple mode
 
 ## Multi-Module Applications
 
@@ -279,6 +279,9 @@ async def dual_mode_service(request):
 # No configuration needed
 mkdir myproject && cd myproject
 mkdir migrations
+
+# Set connection string for simple mode
+export DATABASE_URL="postgresql://user:password@localhost/myproject"
 
 # Create first migration
 pgdbm migrate create initial_schema

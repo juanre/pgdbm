@@ -151,6 +151,14 @@ def get_env_config(config: Optional[Config], env: str) -> Optional[EnvironmentCo
     return config.environments.get(env)
 
 
+def get_env_config_from_env() -> Optional[EnvironmentConfig]:
+    """Build environment configuration from DATABASE_URL for simple mode."""
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        return None
+    return EnvironmentConfig(url=url)
+
+
 def get_module_config(config: Optional[Config], module: str) -> Optional[ModuleConfig]:
     """Get module configuration.
 
