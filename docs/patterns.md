@@ -604,7 +604,7 @@ Database: app
 Calculate pool size based on service needs:
 
 ```python
-# Estimate connections per service
+# Estimate PEAK concurrent connections per service
 services = [
     ("users", 10),     # High traffic
     ("orders", 15),    # Very high traffic
@@ -612,11 +612,17 @@ services = [
     ("analytics", 10), # Periodic jobs
 ]
 
-# Calculate pool size
-min_connections = sum(s[1] for s in services)      # 40
-max_connections = min_connections * 2               # 80
-surge_capacity = int(max_connections * 0.25)       # 20
-total_max = max_connections + surge_capacity       # 100
+# Calculate pool size (shared pool totals cover ALL services)
+peak = sum(s[1] for s in services)                 # 40
+buffer = int(peak * 0.25)                          # 10
+
+# PostgreSQL has a hard max_connections limit; reserve some for migrations/admin/psql.
+db_max_connections = 200
+reserved = 40
+
+max_connections = min(peak + buffer, db_max_connections - reserved)  # 50
+# min_connections is a FLOOR (connections opened eagerly). Keep it low unless you have steady load.
+min_connections = min(5, max_connections)  # 5
 ```
 
 ### Monitoring
@@ -624,8 +630,8 @@ total_max = max_connections + surge_capacity       # 100
 Track pool usage to detect issues:
 
 ```python
-async def monitor_pool_health(shared_pool):
-    stats = await shared_pool.get_pool_stats()
+async def monitor_pool_health(db):
+    stats = await db.get_pool_stats()
 
     usage = stats['used_size'] / stats['size']
     if usage > 0.8:

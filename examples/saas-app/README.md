@@ -134,16 +134,16 @@ curl http://localhost:8000/api/projects \
 
 ## Key Patterns
 
-### Schema Isolation
+### Row-Level Isolation (tenant_id)
 
-Each tenant's data is completely isolated in their own schema:
+Each tenant's data is isolated by including `tenant_id` in every query:
 
 ```python
-class TenantDatabase(BaseDatabase):
-    async def execute_in_tenant_context(self, tenant_id: str, query: str, *args):
-        # Set schema search path
-        await self.execute(f"SET search_path TO tenant_{tenant_id}, public")
-        return await self.execute(query, *args)
+from app.db.tenant import TenantDatabase
+
+# TenantDatabase stores tenant_id and applies it in queries
+tenant_db = TenantDatabase(tenant_id, db_manager=shared_db)
+projects = await tenant_db.list_projects()
 ```
 
 ### Automatic Tenant Context
