@@ -499,7 +499,7 @@ class AsyncDatabaseManager:
         # Prepare frequently used statements
         for name, query in self._prepared_statements.items():
             try:
-                await conn.prepare(query, name=name)
+                await conn.prepare(query)
                 if self._debug:
                     logger.debug(f"Prepared statement '{name}'")
             except Exception as e:

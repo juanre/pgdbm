@@ -554,10 +554,11 @@ monitored_db = MonitoredAsyncDatabaseManager(
 
 #### Additional Constructor Parameters
 
-| Parameter                  | Type  | Default | Description                                      |
-|----------------------------|-------|---------|--------------------------------------------------|
-| `slow_query_threshold_ms`  | `int` | `1000`  | Threshold in milliseconds for slow query logging |
-| `max_history_size`         | `int` | `1000`  | Number of queries to keep in history             |
+| Parameter                  | Type   | Default | Description                                      |
+|----------------------------|--------|---------|--------------------------------------------------|
+| `slow_query_threshold_ms`  | `int`  | `1000`  | Threshold in milliseconds for slow query logging |
+| `max_history_size`         | `int`  | `1000`  | Number of queries to keep in history             |
+| `record_args`              | `bool` | `False` | Record masked query arguments in history         |
 
 #### Additional Methods
 
@@ -595,6 +596,8 @@ for query in slow_queries:
 
 ##### get_query_history(limit: Optional[int] = None, include_errors: bool = True) -> list[QueryMetrics]
 Get recent query execution history.
+
+By default, query arguments are not stored; pass `record_args=True` to record masked arguments.
 
 ```python
 # Get last 20 queries

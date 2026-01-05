@@ -82,6 +82,7 @@ class MonitoredAsyncDatabaseManager(AsyncDatabaseManager):
         schema: Optional[str] = None,
         slow_query_threshold_ms: int = 1000,
         max_history_size: int = 1000,
+        record_args: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(config=config, pool=pool, schema=schema)
@@ -90,12 +91,19 @@ class MonitoredAsyncDatabaseManager(AsyncDatabaseManager):
         self._queries_failed = 0
         self._slow_query_threshold_ms = float(slow_query_threshold_ms)
         self._max_history_size = max_history_size
+        self._record_args = record_args
 
     async def _track_query(
         self, func: Callable[..., Any], query: str, args: tuple, **kwargs: Any
     ) -> Any:
         """Track query execution with metrics."""
-        metrics = QueryMetrics(query=query, args=list(args), start_time=datetime.now())
+        if self._record_args:
+            masked_args = self._mask_sensitive_args(args)
+            args_list = list(masked_args)
+        else:
+            args_list = []
+
+        metrics = QueryMetrics(query=query, args=args_list, start_time=datetime.now())
 
         try:
             result = await func(query, *args, **kwargs)
@@ -328,29 +336,46 @@ class DatabaseDebugger:
 
     async def analyze_table_sizes(self) -> list[dict[str, Any]]:
         """Get table sizes and statistics."""
-        schema_filter = ""
         if self.db.schema:
-            schema_filter = f"AND schemaname = '{self.db.schema}'"
-
-        result: list[dict[str, Any]] = await self.db.fetch_all(
-            f"""
-            SELECT
-                schemaname,
-                relname AS tablename,
-                pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) AS size,
-                pg_total_relation_size(schemaname||'.'||relname) AS size_bytes,
-                n_live_tup AS row_count,
-                n_dead_tup AS dead_rows,
-                last_vacuum,
-                last_autovacuum,
-                last_analyze,
-                last_autoanalyze
-            FROM pg_stat_user_tables
-            WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
-            {schema_filter}
-            ORDER BY pg_total_relation_size(schemaname||'.'||relname) DESC
-        """
-        )
+            result: list[dict[str, Any]] = await self.db.fetch_all(
+                """
+                SELECT
+                    schemaname,
+                    relname AS tablename,
+                    pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) AS size,
+                    pg_total_relation_size(schemaname||'.'||relname) AS size_bytes,
+                    n_live_tup AS row_count,
+                    n_dead_tup AS dead_rows,
+                    last_vacuum,
+                    last_autovacuum,
+                    last_analyze,
+                    last_autoanalyze
+                FROM pg_stat_user_tables
+                WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+                AND schemaname = $1
+                ORDER BY pg_total_relation_size(schemaname||'.'||relname) DESC
+                """,
+                self.db.schema,
+            )
+        else:
+            result = await self.db.fetch_all(
+                """
+                SELECT
+                    schemaname,
+                    relname AS tablename,
+                    pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) AS size,
+                    pg_total_relation_size(schemaname||'.'||relname) AS size_bytes,
+                    n_live_tup AS row_count,
+                    n_dead_tup AS dead_rows,
+                    last_vacuum,
+                    last_autovacuum,
+                    last_analyze,
+                    last_autoanalyze
+                FROM pg_stat_user_tables
+                WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+                ORDER BY pg_total_relation_size(schemaname||'.'||relname) DESC
+                """
+            )
         return result
 
 
