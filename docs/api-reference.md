@@ -750,6 +750,14 @@ async with test_db.get_test_db_manager() as db_manager:
     # Manager automatically connects and disconnects
 ```
 
+##### async create(schema: Optional[str] = None, config: Optional[DatabaseTestConfig] = None, suffix: Optional[str] = None, **kwargs) -> AsyncGenerator[AsyncDatabaseManager, None]
+Create a temporary test database and yield a connected manager.
+
+```python
+async with AsyncTestDatabase.create(schema="test") as db_manager:
+    await db_manager.execute("CREATE TABLE users (...)")
+```
+
 ##### async snapshot_table(db_manager: AsyncDatabaseManager, table_name: str, order_by: Optional[str] = None) -> list[dict[str, Any]]
 Capture current state of a table for comparison.
 

@@ -51,10 +51,11 @@ async def test_db() -> AsyncGenerator[AsyncDatabaseManager, None]:
     test_database = AsyncTestDatabase(DEFAULT_TEST_CONFIG)
     await test_database.create_test_database()
 
-    async with test_database.get_test_db_manager() as db_manager:
-        yield db_manager
-
-    await test_database.drop_test_database()
+    try:
+        async with test_database.get_test_db_manager() as db_manager:
+            yield db_manager
+    finally:
+        await test_database.drop_test_database()
 
 
 @pytest_asyncio.fixture
@@ -74,12 +75,13 @@ async def test_db_with_schema() -> AsyncGenerator[AsyncDatabaseManager, None]:
     test_database = AsyncTestDatabase(DEFAULT_TEST_CONFIG)
     await test_database.create_test_database()
 
-    async with test_database.get_test_db_manager(schema="test_schema") as db_manager:
-        # Ensure schema exists
-        await db_manager.execute('CREATE SCHEMA IF NOT EXISTS "test_schema"')
-        yield db_manager
-
-    await test_database.drop_test_database()
+    try:
+        async with test_database.get_test_db_manager(schema="test_schema") as db_manager:
+            # Ensure schema exists
+            await db_manager.execute('CREATE SCHEMA IF NOT EXISTS "test_schema"')
+            yield db_manager
+    finally:
+        await test_database.drop_test_database()
 
 
 @pytest_asyncio.fixture
@@ -114,10 +116,14 @@ async def test_db_factory() -> AsyncGenerator[Any, None]:
 
             config = test_database.get_test_db_config(schema=schema, **kwargs)
             db_manager = AsyncDatabaseManager(config)
-            await db_manager.connect()
-
-            if schema:
-                await db_manager.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
+            try:
+                await db_manager.connect()
+                if schema:
+                    await db_manager.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
+            except Exception:
+                await db_manager.disconnect()
+                await test_database.drop_test_database()
+                raise
 
             self.databases.append((test_database, db_manager))
             return db_manager

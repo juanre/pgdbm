@@ -11,6 +11,7 @@ import json
 import tempfile
 from pathlib import Path
 
+import asyncpg
 import pytest
 
 from pgdbm import AsyncTestDatabase, DatabaseTestCase, DatabaseTestConfig
@@ -56,6 +57,29 @@ class TestTestingUtilities:
         # Creating again with same name should work
         await test_database.create_test_database(suffix="lifecycle")
         await test_database.drop_test_database()
+
+    @pytest.mark.asyncio
+    async def test_async_test_database_create_context_manager(self):
+        """Ensure AsyncTestDatabase.create cleans up the database."""
+        config = DatabaseTestConfig.from_env()
+        async with AsyncTestDatabase.create(schema="test", config=config) as db:
+            db_name = await db.fetch_value("SELECT current_database()")
+
+        admin_conn = await asyncpg.connect(
+            user=config.user,
+            password=config.password,
+            host=config.host,
+            port=config.port,
+            database="postgres",
+        )
+        try:
+            exists = await admin_conn.fetchval(
+                "SELECT 1 FROM pg_database WHERE datname = $1", db_name
+            )
+        finally:
+            await admin_conn.close()
+
+        assert exists is None
 
     @pytest.mark.asyncio
     async def test_database_test_case_utilities(self, test_db_with_tables):

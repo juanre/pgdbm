@@ -87,6 +87,24 @@ class AsyncTestDatabase:
             )
         return self._admin_pool
 
+    @classmethod
+    @asynccontextmanager
+    async def create(
+        cls,
+        schema: Optional[str] = None,
+        config: Optional[DatabaseTestConfig] = None,
+        suffix: Optional[str] = None,
+        **kwargs: Any,
+    ) -> AsyncGenerator[AsyncDatabaseManager, None]:
+        """Create a temporary test database and yield a connected manager."""
+        test_database = cls(config)
+        await test_database.create_test_database(suffix=suffix)
+        try:
+            async with test_database.get_test_db_manager(schema=schema, **kwargs) as db_manager:
+                yield db_manager
+        finally:
+            await test_database.drop_test_database()
+
     async def create_test_database(self, suffix: Optional[str] = None) -> str:
         """
         Create a test database with unique name.
