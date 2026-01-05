@@ -894,16 +894,14 @@ class AsyncDatabaseManager:
         Efficiently copy many records to a table using COPY.
 
         This is much faster than individual INSERTs for bulk data.
+        Table name should be the unqualified table identifier; schema is applied automatically.
         """
-        table_name = self._prepare_query(f"{{{{tables.{table_name}}}}}")
+        qualified_table = self._prepare_query(f"{{{{tables.{table_name}}}}}")
 
         async with self.acquire() as conn:
-            if columns:
-                f'COPY {table_name} ({", ".join(columns)}) FROM STDIN'
-            else:
-                pass
-
-            result = await conn.copy_records_to_table(table_name, records=records, columns=columns)
+            result = await conn.copy_records_to_table(
+                qualified_table, records=records, columns=columns
+            )
             # asyncpg returns a string like "COPY 5", extract the number
             if isinstance(result, str) and result.startswith("COPY "):
                 return int(result.split()[1])
