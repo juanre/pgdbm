@@ -11,8 +11,9 @@ from pgdbm import AsyncDatabaseManager, DatabaseConfig
 async def create_database_infrastructure(connection_string: str):
     config = DatabaseConfig(
         connection_string=connection_string,
-        min_connections=10,
-        max_connections=50,
+        # Pool sizing: start small, then tune using metrics and your DB's max_connections
+        min_connections=5,
+        max_connections=20,
     )
 
     # ONE shared pool for entire application
@@ -202,8 +203,8 @@ config = DatabaseConfig(
     connection_string="postgresql://user:pass@host:5432/dbname",
 
     # Pool settings
-    min_connections=10,        # Minimum idle connections
-    max_connections=50,        # Maximum total connections
+    min_connections=5,         # Minimum pool size (connections opened eagerly)
+    max_connections=20,        # Maximum pool size (cap)
 
     # Timeouts (in seconds)
     connect_timeout=5.0,       # Connection timeout
@@ -240,6 +241,10 @@ config = DatabaseConfig(
 | Large API (>1000 req/s) | 20 | 100 |
 | Background workers | 2 | 10 per worker |
 
+Notes:
+- For shared-pool deployments, these numbers apply to the ONE shared pool (total across all schemas/services).
+- Keep `min_connections` low unless you have steady traffic; it is the pool floor.
+
 ## 🔍 Common Errors & Solutions
 
 | Error | Cause | Solution |
@@ -254,11 +259,13 @@ config = DatabaseConfig(
 
 ```python
 # Check pool statistics
-stats = pool.get_stats()
-print(f"Active: {stats['active']}, Idle: {stats['idle']}")
+stats = await db.get_pool_stats()
+print(f"Used: {stats['used_size']}, Free: {stats['free_size']}, Max: {stats['max_size']}")
 
-# Check current schema
-schema = await db.fetch_value("SELECT current_schema()")
+# Check schema configuration
+# Note: in shared-pool mode, pgdbm does NOT change search_path; it qualifies tables via templates.
+print(f"Configured schema: {db.schema}")
+print(db.prepare_query("SELECT * FROM {{tables.users}} LIMIT 1"))
 
 # List all tables in schema
 tables = await db.fetch_all("""

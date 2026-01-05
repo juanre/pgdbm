@@ -443,8 +443,8 @@ config = DatabaseConfig(
     connection_string="postgresql://localhost/myapp",
 
     # Pool settings
-    min_connections=20,      # Minimum idle connections
-    max_connections=100,     # Maximum total connections
+    min_connections=20,      # Minimum pool size (connections opened eagerly)
+    max_connections=100,     # Maximum pool size (cap)
 
     # Timeouts
     connect_timeout=5.0,     # Connection timeout
@@ -500,7 +500,7 @@ db.set_slow_query_callback(log_slow_query)
 1. Increase `max_connections` in config
 2. Ensure you're using ONE shared pool
 3. Check for connection leaks (transactions not closed)
-4. Monitor with `pool.get_stats()`
+4. Monitor with `await db.get_pool_stats()`
 
 ### Schema Not Found
 
@@ -510,7 +510,7 @@ db.set_slow_query_callback(log_slow_query)
 1. Ensure migrations have run for the schema
 2. Check you're using `{{tables.tablename}}` syntax
 3. Verify the database manager has the correct schema set
-4. Use `db.execute("SET search_path TO myschema")` to debug
+4. Debug by printing `db.schema` and inspecting `db.prepare_query(...)` output (shared-pool mode does not use `search_path`)
 
 ### Migration Conflicts
 

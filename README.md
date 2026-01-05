@@ -136,8 +136,9 @@ async def lifespan(app: FastAPI):
     # Create ONE shared pool for entire application
     config = DatabaseConfig(
         connection_string="postgresql://localhost/myapp",
-        min_connections=10,
-        max_connections=50,
+        # Pool sizing: start small, then tune using metrics and your DB's max_connections
+        min_connections=5,
+        max_connections=20,
     )
     shared_pool = await AsyncDatabaseManager.create_shared_pool(config)
 
