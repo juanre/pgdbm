@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-01-06
+
+### Added
+- `AsyncTestDatabase.create()` class method - context manager that creates a temporary test database and guarantees cleanup even if tests fail
+
+### Fixed
+- Test fixture cleanup hardened with `try/finally` blocks to prevent orphaned databases when tests fail
+- All test fixtures (`test_db`, `test_db_with_schema`, `test_db_factory`) now properly clean up databases even on test exceptions
+
+### Documentation
+- Pool sizing recommendations clarified (start with 5/20, tune based on metrics)
+- Clarified that pgdbm uses template substitution for schema isolation, not `search_path`
+- Added database cleanup section to testing documentation
+
 ## [0.2.0] - 2026-01-05
 
 ### Added
@@ -78,6 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Testing utilities**: Automatic test database creation and cleanup
 - **Schema isolation**: Multi-tenant support with `{{tables.name}}` templating
 
-[Unreleased]: https://github.com/juanre/pgdbm/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/juanre/pgdbm/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/juanre/pgdbm/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/juanre/pgdbm/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/juanre/pgdbm/releases/tag/v0.1.0
