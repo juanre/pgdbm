@@ -498,6 +498,45 @@ async def test_fast_isolated(test_db_isolated):
     # Rolls back automatically
 ```
 
+## Database Cleanup
+
+**IMPORTANT:** Fixtures other than `test_db_isolated` create actual PostgreSQL databases. If tests fail or are interrupted, these databases may not be cleaned up.
+
+### Why test_db_isolated is Recommended
+
+`test_db_isolated` uses transaction rollback - no databases are created or destroyed. Other fixtures (`test_db`, `test_db_with_tables`, etc.) create and drop actual databases for each test.
+
+**Prefer `test_db_isolated` for:**
+- Large test suites (100x faster)
+- CI/CD pipelines (no cleanup issues)
+- Development (no orphaned databases)
+
+### Cleaning Up Orphaned Test Databases
+
+If you find orphaned `test_*` databases:
+
+```bash
+# Count orphaned test databases
+psql -U postgres -t -c "SELECT COUNT(*) FROM pg_database WHERE datname LIKE 'test_%'"
+
+# Drop all orphaned test databases
+psql -U postgres -t -c "SELECT 'DROP DATABASE IF EXISTS \"' || datname || '\";' FROM pg_database WHERE datname LIKE 'test_%'" | psql -U postgres
+```
+
+### Using AsyncTestDatabase.create() Directly
+
+For custom test setups outside fixtures, use the context manager which guarantees cleanup:
+
+```python
+from pgdbm.testing import AsyncTestDatabase
+
+async def test_custom_setup():
+    async with AsyncTestDatabase.create(schema="mytest") as db:
+        await db.execute("CREATE TABLE {{tables.items}} (...)")
+        # Test code here
+    # Database automatically dropped even if test fails
+```
+
 That's everything you need for testing pgdbm code.
 
 ## Related Skills
