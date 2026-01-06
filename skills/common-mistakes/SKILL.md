@@ -237,8 +237,12 @@ migrations = AsyncMigrationManager(db2, "migrations", module_name=f"mylib_{schem
 
 **Debug checklist:**
 ```python
-# Check schema
-print(db.schema)  # Should match where tables are
+# Check schema configuration
+print(f"Configured schema: {db.schema}")  # Should match where tables are
+
+# Debug template expansion
+print(db.prepare_query("SELECT * FROM {{tables.users}}"))
+# Shows: 'SELECT * FROM "myschema".users' or 'SELECT * FROM users'
 
 # Check query uses templates
 query = "SELECT * FROM {{tables.users}}"  # ✅

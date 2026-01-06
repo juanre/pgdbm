@@ -134,7 +134,7 @@ These skills follow the **completeness principle**:
 
 ## Complete Skill Set
 
-All 8 planned skills are now implemented with complete API coverage.
+All 9 planned skills are now implemented with complete API coverage.
 
 ## Future Additions
 

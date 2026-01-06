@@ -29,8 +29,8 @@ from pgdbm import AsyncDatabaseManager, DatabaseConfig
 # In your FastAPI lifespan or app startup
 config = DatabaseConfig(
     connection_string="postgresql://localhost/myapp",
-    min_connections=10,   # Total for ALL services
-    max_connections=50,   # Shared across ALL services
+    min_connections=5,    # Start small, tune based on metrics
+    max_connections=20,   # Shared across ALL services - keep under DB max_connections
 )
 
 shared_pool = await AsyncDatabaseManager.create_shared_pool(config)
@@ -177,29 +177,25 @@ This automatically becomes `"users".users` table in users schema.
 
 ## Pool Sizing Guide
 
-Calculate based on service needs:
+Start small and tune based on metrics:
 
 ```python
-# Rough estimate
-services = [
-    ("users", 10),      # High traffic
-    ("orders", 15),     # Very high traffic
-    ("payments", 5),    # Low traffic
-    ("analytics", 10),  # Periodic jobs
-]
-
-total_min = sum(s[1] for s in services) // 2  # ~20
-total_max = sum(s[1] for s in services)       # ~40
-surge = int(total_max * 0.25)                 # +10
-
+# Start with conservative defaults
 config = DatabaseConfig(
     connection_string="...",
-    min_connections=total_min,   # 20
-    max_connections=total_max + surge,  # 50
+    min_connections=5,    # Floor - connections opened eagerly
+    max_connections=20,   # Cap - tune based on DB max_connections and traffic
 )
+
+# For high-traffic apps, tune upward based on:
+# - Your DB's max_connections (typically 100-400)
+# - Observed pool exhaustion in metrics
+# - Number of concurrent requests
 ```
 
-**Key insight:** Shared pool uses LESS connections than separate pools because services don't peak simultaneously.
+**Key insight:** Shared pool uses LESS connections than separate pools because services don't peak simultaneously. The pool dynamically allocates connections based on actual demand.
+
+**Important:** Keep `max_connections` well under your database's `max_connections` setting to leave room for admin connections and other clients.
 
 ## Common Mistakes
 

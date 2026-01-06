@@ -47,8 +47,8 @@ from pgdbm import AsyncDatabaseManager, DatabaseConfig
 
 config = DatabaseConfig(
     connection_string="postgresql://user:pass@host/db",
-    min_connections=10,
-    max_connections=50,
+    min_connections=5,   # Start small, tune based on metrics
+    max_connections=20,  # Keep under your DB's max_connections
 )
 shared_pool = await AsyncDatabaseManager.create_shared_pool(config)
 
@@ -346,8 +346,8 @@ async def lifespan(app: FastAPI):
     # ONE shared pool
     config = DatabaseConfig(
         connection_string="postgresql://localhost/myapp",
-        min_connections=10,
-        max_connections=50,
+        min_connections=5,
+        max_connections=20,
     )
     shared_pool = await AsyncDatabaseManager.create_shared_pool(config)
 

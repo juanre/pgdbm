@@ -166,7 +166,7 @@ user_id = await db.fetch_value(
     email
 )
 
-await db.close()
+await db.disconnect()
 ```
 
 **For complete implementation:** See `pgdbm:standalone-service` skill

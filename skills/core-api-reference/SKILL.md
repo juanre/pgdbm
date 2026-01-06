@@ -201,7 +201,17 @@ exists = await db.table_exists(table_name: str) -> bool
 # Examples
 exists = await db.table_exists("users")  # Check in current schema
 exists = await db.table_exists("other_schema.users")  # Check in specific schema
+
+# Debug template substitution (useful for troubleshooting)
+prepared = db.prepare_query(query: str) -> str
+
+# Example - see how templates expand for this manager
+print(db.prepare_query("SELECT * FROM {{tables.users}}"))
+# With schema="myapp": 'SELECT * FROM "myapp".users'
+# Without schema:      'SELECT * FROM users'
 ```
+
+**Note:** In shared-pool mode, pgdbm does NOT change `search_path`. Schema isolation happens via template substitution at query time, not connection configuration.
 
 ### Transaction Management
 
@@ -391,6 +401,7 @@ async with db.transaction() as tx:
 | `fetch_all_as_model` | model, query, *args, timeout | list[Model] | Rows as Pydantic |
 | `copy_records_to_table` | table, records, columns | int | Bulk COPY (fast) |
 | `table_exists` | table_name | bool | Schema checking |
+| `prepare_query` | query | str | Debug template expansion |
 | `transaction` | - | TransactionManager | Transaction context |
 | `get_pool_stats` | - | dict | Pool monitoring |
 | `add_prepared_statement` | name, query | None | Performance optimization |
@@ -637,9 +648,9 @@ config = DatabaseConfig(
 config = DatabaseConfig(
     connection_string="...",
 
-    # Pool sizing
-    min_connections=10,      # Minimum idle connections
-    max_connections=50,      # Maximum total connections
+    # Pool sizing (start small, tune based on metrics)
+    min_connections=5,       # Pool floor - connections opened eagerly
+    max_connections=20,      # Pool cap - keep under DB's max_connections
 
     # Connection lifecycle
     max_queries=50000,       # Queries before recycling connection
