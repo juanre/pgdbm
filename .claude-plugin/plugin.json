@@ -1,7 +1,7 @@
 {
   "name": "pgdbm",
   "description": "Production-ready async PostgreSQL utilities with connection pooling, migrations, and testing support - skills for database patterns, migrations, testing, and architecture",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": {
     "name": "Juan Reyero",
     "email": "juan@juanreyero.com"
