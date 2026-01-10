@@ -7,9 +7,9 @@ description: Use when writing tests for pgdbm-based code - provides fixture sele
 
 ## Overview
 
-**Core Principle:** Import fixtures, choose based on speed vs isolation needs, write tests.
+**Core Principle:** USE THE PROVIDED FIXTURES. Never create your own `AsyncTestDatabase` in tests.
 
-pgdbm provides 6 test fixtures covering different testing scenarios. This skill helps you choose the right one in <10 seconds.
+pgdbm provides 6 test fixtures that handle creation, cleanup, and error handling correctly. Just import and use them.
 
 ## Quick Setup
 
@@ -18,9 +18,31 @@ pgdbm provides 6 test fixtures covering different testing scenarios. This skill 
 from pgdbm.fixtures.conftest import *
 
 # All fixtures now available to all tests
+# Cleanup is AUTOMATIC - you don't need to write any teardown code
 ```
 
-That's it. No configuration needed.
+That's it. No configuration needed. No cleanup code needed.
+
+## CRITICAL: Don't Roll Your Own
+
+**NEVER do this:**
+```python
+# WRONG - creates orphaned databases when tests fail
+async def test_something():
+    test_db = AsyncTestDatabase(config)
+    await test_db.create_test_database()
+    # If test fails here, database is never cleaned up!
+    ...
+    await test_db.drop_test_database()
+```
+
+**ALWAYS do this:**
+```python
+# CORRECT - use the fixture
+async def test_something(test_db):
+    # Just use it - cleanup is automatic
+    await test_db.execute("SELECT 1")
+```
 
 ## Fixture Selection Decision Tree
 
@@ -260,15 +282,16 @@ async def test_multiple_services(test_db_factory):
 
 ## Testing Patterns
 
-### Pattern: Custom Fixtures
+### Pattern: Custom Fixtures (The Right Way)
 
-Build on base fixtures for reusable test setup:
+**ALWAYS chain from provided fixtures.** Never use `AsyncTestDatabase` directly in your fixtures.
 
 ```python
 # tests/conftest.py
 import pytest_asyncio
 from pgdbm.fixtures.conftest import *
 
+# CORRECT - chain from test_db_with_tables
 @pytest_asyncio.fixture
 async def user_with_project(test_db_with_tables):
     """Create user and project for testing."""
@@ -289,7 +312,76 @@ async def user_with_project(test_db_with_tables):
         "project_id": project_id,
         "db": test_db_with_tables
     }
+    # No cleanup needed - test_db_with_tables handles it
+```
 
+### Pattern: Application Infrastructure Fixture
+
+For apps with custom database setup (shared pools, multiple schemas):
+
+```python
+# CORRECT - use test_db_factory for multiple schemas/managers
+@pytest_asyncio.fixture
+async def app_infra(test_db_factory):
+    """Set up application database infrastructure."""
+    # Create test database via factory (handles cleanup)
+    db_manager = await test_db_factory.create_db(suffix="myapp")
+
+    # Create shared pool from test database
+    config = DatabaseConfig(connection_string=db_manager.config.get_dsn())
+    pool = await AsyncDatabaseManager.create_shared_pool(config)
+
+    # Create schema-specific managers
+    await db_manager.execute("CREATE SCHEMA IF NOT EXISTS api")
+    await db_manager.execute("CREATE SCHEMA IF NOT EXISTS jobs")
+
+    api_db = AsyncDatabaseManager(pool=pool, schema="api")
+    jobs_db = AsyncDatabaseManager(pool=pool, schema="jobs")
+
+    # Apply migrations
+    await AsyncMigrationManager(api_db, "migrations/api", module_name="api").apply_pending_migrations()
+    await AsyncMigrationManager(jobs_db, "migrations/jobs", module_name="jobs").apply_pending_migrations()
+
+    yield {"api": api_db, "jobs": jobs_db, "pool": pool}
+
+    await pool.close()
+    # test_db_factory handles database cleanup automatically
+```
+
+### Pattern: WRONG - Don't Do This
+
+```python
+# WRONG - manual AsyncTestDatabase without proper cleanup
+@pytest_asyncio.fixture
+async def my_db():
+    test_database = AsyncTestDatabase(config)
+    await test_database.create_test_database()
+
+    async with test_database.get_test_db_manager() as db:
+        yield db
+
+    await test_database.drop_test_database()  # ← NOT IN FINALLY = LEAKS!
+```
+
+If you MUST use `AsyncTestDatabase` directly (rare), use try/finally:
+
+```python
+# ACCEPTABLE - but prefer using provided fixtures instead
+@pytest_asyncio.fixture
+async def my_db():
+    test_database = AsyncTestDatabase(config)
+    await test_database.create_test_database()
+
+    try:
+        async with test_database.get_test_db_manager() as db:
+            yield db
+    finally:
+        await test_database.drop_test_database()  # ← ALWAYS RUNS
+```
+
+### Pattern: Tests for Projects
+
+```python
 # tests/test_projects.py
 async def test_project_access(user_with_project):
     db = user_with_project["db"]
@@ -500,42 +592,61 @@ async def test_fast_isolated(test_db_isolated):
 
 ## Database Cleanup
 
-**IMPORTANT:** Fixtures other than `test_db_isolated` create actual PostgreSQL databases. If tests fail or are interrupted, these databases may not be cleaned up.
+**The provided fixtures handle cleanup automatically.** You don't need to write cleanup code if you use them correctly.
 
-### Why test_db_isolated is Recommended
+### Why Databases Leak
 
-`test_db_isolated` uses transaction rollback - no databases are created or destroyed. Other fixtures (`test_db`, `test_db_with_tables`, etc.) create and drop actual databases for each test.
+Databases leak when:
+1. You use `AsyncTestDatabase` directly without try/finally
+2. Your custom fixture doesn't chain from a pgdbm fixture
+3. You silence exceptions in cleanup code with `except: pass`
 
-**Prefer `test_db_isolated` for:**
-- Large test suites (100x faster)
-- CI/CD pipelines (no cleanup issues)
-- Development (no orphaned databases)
+**The solution is simple: USE THE PROVIDED FIXTURES.**
 
-### Cleaning Up Orphaned Test Databases
+### Fixture Comparison
 
-If you find orphaned `test_*` databases:
+| Fixture | Creates DB? | Cleanup Method | Risk of Leaks |
+|---------|-------------|----------------|---------------|
+| `test_db_isolated` | No | Transaction rollback | **Zero** |
+| `test_db` | Yes | Automatic (try/finally) | Zero if used correctly |
+| `test_db_factory` | Yes | Automatic (try/finally) | Zero if used correctly |
+| Manual `AsyncTestDatabase` | Yes | **YOUR responsibility** | **HIGH** |
+
+### Best Practice: Chain From Fixtures
+
+```python
+# GOOD - chains from test_db, cleanup automatic
+@pytest_asyncio.fixture
+async def my_app_db(test_db):
+    await test_db.execute("CREATE SCHEMA myapp")
+    yield test_db
+    # No cleanup needed
+
+# GOOD - chains from test_db_factory, cleanup automatic
+@pytest_asyncio.fixture
+async def multi_schema_db(test_db_factory):
+    db = await test_db_factory.create_db("myapp")
+    yield db
+    # No cleanup needed
+```
+
+### If You Find Orphaned Databases
 
 ```bash
 # Count orphaned test databases
-psql -U postgres -t -c "SELECT COUNT(*) FROM pg_database WHERE datname LIKE 'test_%'"
+psql -U postgres -t -c "SELECT COUNT(*) FROM pg_database WHERE datname ~ '^test_[0-9a-f]{8}'"
 
-# Drop all orphaned test databases
-psql -U postgres -t -c "SELECT 'DROP DATABASE IF EXISTS \"' || datname || '\";' FROM pg_database WHERE datname LIKE 'test_%'" | psql -U postgres
+# If count > 0, you have a fixture problem - fix your fixtures first, then clean up:
+psql -U postgres -t -c \
+  "SELECT 'DROP DATABASE IF EXISTS \"' || datname || '\";' FROM pg_database WHERE datname ~ '^test_[0-9a-f]{8}'" \
+  | psql -U postgres
 ```
 
-### Using AsyncTestDatabase.create() Directly
+### The Rule
 
-For custom test setups outside fixtures, use the context manager which guarantees cleanup:
+**If you're writing `AsyncTestDatabase(` in your test code, you're probably doing it wrong.**
 
-```python
-from pgdbm.testing import AsyncTestDatabase
-
-async def test_custom_setup():
-    async with AsyncTestDatabase.create(schema="mytest") as db:
-        await db.execute("CREATE TABLE {{tables.items}} (...)")
-        # Test code here
-    # Database automatically dropped even if test fails
-```
+Use the fixtures. They exist for a reason.
 
 That's everything you need for testing pgdbm code.
 

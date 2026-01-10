@@ -20,6 +20,7 @@ This skill provides explicit counters for common rationalizations that lead to b
 3. **ALWAYS specify module_name** - Never omit it in AsyncMigrationManager
 4. **Schema is permanent** - Never change db.schema at runtime
 5. **Conditional cleanup** - Only close connections you created
+6. **Test cleanup in finally** - ALWAYS put `drop_test_database()` in a `finally` block
 
 ## Common Rationalizations Table
 
@@ -33,6 +34,8 @@ This skill provides explicit counters for common rationalizations that lead to b
 | "I can switch schema at runtime for tenants" | Race conditions. Same manager used by concurrent requests. | Create manager per schema |
 | "I'll close the db_manager in my library" | Closes parent app's pool. Crashes everything. | Check `_external_db` flag |
 | "{{tables.}} is too verbose, I'll skip it" | Works until you use shared pools or change schemas. Then breaks. | Use always, no exceptions |
+| "Cleanup doesn't need try/finally" | If test fails, cleanup never runs. Databases leak forever. | ALWAYS use try/finally |
+| "I'll silence cleanup errors with except pass" | Hides failures. Databases accumulate silently for months. | Let cleanup errors propagate |
 
 ## Red Flags - STOP Immediately
 
@@ -204,6 +207,100 @@ await db.execute('CREATE TABLE {{tables.users}} (...)')
 await db.execute('INSERT INTO {{tables.users}} (email) VALUES ($1)', email)
 ```
 
+### 🚫 Test Database Cleanup Outside try/finally
+
+```python
+# WRONG - cleanup never runs if test fails
+@pytest_asyncio.fixture
+async def test_db():
+    test_database = AsyncTestDatabase(TEST_CONFIG)
+    await test_database.create_test_database()
+
+    async with test_database.get_test_db_manager(schema="myapp") as db:
+        yield db
+
+    await test_database.drop_test_database()  # ← NEVER RUNS IF TEST FAILS
+```
+
+**What happens:**
+- If ANY test fails, the database is never dropped
+- Orphaned `test_*` databases accumulate (thousands over time)
+- PostgreSQL runs out of connections/disk space
+
+**Fix:**
+```python
+# CORRECT - cleanup in finally block
+@pytest_asyncio.fixture
+async def test_db():
+    test_database = AsyncTestDatabase(TEST_CONFIG)
+    await test_database.create_test_database()
+
+    try:
+        async with test_database.get_test_db_manager(schema="myapp") as db:
+            yield db
+    finally:
+        await test_database.drop_test_database()  # ← ALWAYS RUNS
+```
+
+**Even better - use provided fixtures:**
+```python
+# BEST - just import and use pgdbm fixtures
+# tests/conftest.py
+from pgdbm.fixtures.conftest import *
+
+# No manual cleanup needed - fixtures handle it
+```
+
+### 🚫 Swallowing Exceptions in Test Cleanup
+
+```python
+# WRONG - silently ignores cleanup failure
+finally:
+    try:
+        await test_db.drop_test_database()
+    except Exception:
+        pass  # Database leaks silently!
+```
+
+**What happens:**
+- Cleanup fails for some reason (connection issue, etc.)
+- Exception is swallowed, no one notices
+- Databases accumulate silently
+
+**Fix:**
+```python
+# CORRECT - let cleanup failures be visible
+finally:
+    await test_db.drop_test_database()  # Failure will be reported
+```
+
+### 🚫 Manual Database Management in Test Functions
+
+```python
+# WRONG - duplicating fixture logic in every test
+@pytest.mark.asyncio
+async def test_something():
+    test_db = AsyncTestDatabase(config)
+    await test_db.create_test_database()
+    try:
+        # ... test code ...
+    finally:
+        await test_db.drop_test_database()
+```
+
+**What happens:**
+- Code duplication across tests
+- Easy to forget cleanup in some tests
+- Interrupts (Ctrl+C) may skip finally blocks
+
+**Fix:**
+```python
+# CORRECT - use fixtures
+@pytest.mark.asyncio
+async def test_something(test_db):  # Fixture handles everything
+    # ... test code ...
+```
+
 ### 🚫 Not Using Unique module_name Per Schema
 
 ```python
@@ -226,6 +323,35 @@ migrations = AsyncMigrationManager(db2, "migrations", module_name=f"mylib_{schem
 ```
 
 ## Symptom-Based Debugging
+
+### Symptom: Orphaned test_* Databases
+
+**Possible causes:**
+1. Custom fixtures without try/finally cleanup
+2. Manual database creation in test functions
+3. Exceptions swallowed in cleanup code
+4. Tests interrupted with Ctrl+C
+
+**Debug checklist:**
+```bash
+# Count orphaned databases
+psql -U postgres -t -c "SELECT COUNT(*) FROM pg_database WHERE datname ~ '^test_[0-9a-f]{8}'"
+
+# If count > 0, you have a cleanup problem
+```
+
+**Fix:**
+1. Check all custom fixtures for try/finally pattern
+2. Stop using manual AsyncTestDatabase in tests - use fixtures
+3. Remove `except Exception: pass` from cleanup code
+4. Prefer `test_db_isolated` fixture (uses rollback, no database created)
+
+**Clean up orphaned databases:**
+```bash
+psql -U postgres -t -c \
+  "SELECT 'DROP DATABASE IF EXISTS \"' || datname || '\";' FROM pg_database WHERE datname ~ '^test_[0-9a-f]{8}'" \
+  | psql -U postgres
+```
 
 ### Symptom: "Relation does not exist"
 
