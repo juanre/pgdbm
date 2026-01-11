@@ -470,3 +470,261 @@ class TestMigrationManagement:
 
             # Verify table was created
             assert await test_db.table_exists("generated_migration")
+
+    @pytest.mark.asyncio
+    async def test_no_transaction_detection(self, test_db):
+        """Test _requires_no_transaction detection."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AsyncMigrationManager(test_db, migrations_path=tmpdir, module_name="test")
+
+            # Should detect magic comment
+            assert manager._requires_no_transaction(
+                "-- pgdbm:no-transaction\nCREATE INDEX CONCURRENTLY ..."
+            )
+            assert manager._requires_no_transaction(
+                "-- Description\n-- pgdbm:no-transaction\nCREATE INDEX ..."
+            )
+
+            # Should not detect without magic comment
+            assert not manager._requires_no_transaction("CREATE TABLE test (id INT);")
+            assert not manager._requires_no_transaction(
+                "-- Some comment\nCREATE INDEX idx ON table(col);"
+            )
+
+    @pytest.mark.asyncio
+    async def test_no_transaction_migration(self, test_db):
+        """Test migration with pgdbm:no-transaction executes without transaction."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            migrations = AsyncMigrationManager(
+                test_db, migrations_path=tmpdir, module_name="no_tx_test"
+            )
+
+            # First, create a table in a regular migration
+            (Path(tmpdir) / "001_create_table.sql").write_text(
+                """
+                CREATE TABLE no_tx_test (
+                    id SERIAL PRIMARY KEY,
+                    email VARCHAR(255)
+                );
+                """
+            )
+
+            # Then create an index CONCURRENTLY in a no-transaction migration
+            (Path(tmpdir) / "002_create_index_concurrently.sql").write_text(
+                """
+-- pgdbm:no-transaction
+-- This migration creates an index concurrently, which requires autocommit mode.
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_no_tx_test_email
+    ON no_tx_test (email);
+                """
+            )
+
+            # Apply migrations
+            result = await migrations.apply_pending_migrations()
+            assert result["status"] == "success"
+            assert len(result["applied"]) == 2
+            assert result["applied"][0]["filename"] == "001_create_table.sql"
+            assert result["applied"][1]["filename"] == "002_create_index_concurrently.sql"
+
+            # Verify table was created
+            assert await test_db.table_exists("no_tx_test")
+
+            # Verify index was created
+            indexes = await test_db.fetch_all(
+                """
+                SELECT indexname FROM pg_indexes
+                WHERE tablename = 'no_tx_test'
+                """
+            )
+            index_names = [row["indexname"] for row in indexes]
+            assert "idx_no_tx_test_email" in index_names
+
+            # Verify migration was recorded
+            history = await migrations.get_migration_history()
+            applied_files = [h["filename"] for h in history]
+            assert "002_create_index_concurrently.sql" in applied_files
+
+    @pytest.mark.asyncio
+    async def test_no_transaction_migration_error_handling(self, test_db):
+        """Test error handling in no-transaction migrations.
+
+        No-transaction migrations should properly report errors and not
+        record failed migrations as applied.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            migrations = AsyncMigrationManager(
+                test_db, migrations_path=tmpdir, module_name="no_tx_fail_test"
+            )
+
+            # Create a no-transaction migration with a syntax error
+            (Path(tmpdir) / "001_failing.sql").write_text(
+                """
+-- pgdbm:no-transaction
+-- This migration has a syntax error
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_nonexistent
+    ON nonexistent_table (col,);
+                """
+            )
+
+            # Apply migration - should fail
+            result = await migrations.apply_pending_migrations()
+            assert result["status"] == "error"
+            assert "001_failing.sql" in result["failed_migration"]
+
+            # Migration was NOT recorded as applied
+            history = await migrations.get_migration_history()
+            applied_files = [h["filename"] for h in history]
+            assert "001_failing.sql" not in applied_files
+
+
+class TestSqlStatementSplitting:
+    """Unit tests for _split_sql_statements helper function."""
+
+    def test_basic_split(self):
+        """Test basic statement splitting on semicolons."""
+        from pgdbm.migrations import _split_sql_statements
+
+        sql = "SELECT 1; SELECT 2; SELECT 3;"
+        result = _split_sql_statements(sql)
+        assert len(result) == 3
+        assert result[0] == "SELECT 1;"
+        assert result[1] == "SELECT 2;"
+        assert result[2] == "SELECT 3;"
+
+    def test_multiline_statements(self):
+        """Test splitting multiline statements."""
+        from pgdbm.migrations import _split_sql_statements
+
+        sql = """
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name TEXT
+);
+
+CREATE TABLE posts (
+    id SERIAL PRIMARY KEY,
+    user_id INT
+);
+        """
+        result = _split_sql_statements(sql)
+        assert len(result) == 2
+        assert "CREATE TABLE users" in result[0]
+        assert "CREATE TABLE posts" in result[1]
+
+    def test_single_quoted_strings_with_semicolons(self):
+        """Test that semicolons in single-quoted strings are not split."""
+        from pgdbm.migrations import _split_sql_statements
+
+        sql = "INSERT INTO t VALUES ('hello; world'); SELECT 1;"
+        result = _split_sql_statements(sql)
+        assert len(result) == 2
+        assert "hello; world" in result[0]
+
+    def test_escaped_quotes(self):
+        """Test handling of escaped single quotes ('')."""
+        from pgdbm.migrations import _split_sql_statements
+
+        sql = "INSERT INTO t VALUES ('it''s a test; really'); SELECT 2;"
+        result = _split_sql_statements(sql)
+        assert len(result) == 2
+        assert "it''s a test; really" in result[0]
+
+    def test_dollar_quoted_strings(self):
+        """Test that semicolons in dollar-quoted strings are not split."""
+        from pgdbm.migrations import _split_sql_statements
+
+        sql = """
+CREATE FUNCTION test() RETURNS void AS $$
+BEGIN
+    RAISE NOTICE 'test; with semicolon';
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT 1;
+        """
+        result = _split_sql_statements(sql)
+        assert len(result) == 2
+        assert "test; with semicolon" in result[0]
+        assert "SELECT 1;" in result[1]
+
+    def test_tagged_dollar_quotes(self):
+        """Test that tagged dollar quotes ($tag$...$tag$) work correctly."""
+        from pgdbm.migrations import _split_sql_statements
+
+        sql = """
+CREATE FUNCTION test() RETURNS void AS $body$
+BEGIN
+    RAISE NOTICE 'test; with semicolon';
+    PERFORM $nested$SELECT 1; SELECT 2;$nested$;
+END;
+$body$ LANGUAGE plpgsql;
+
+SELECT 3;
+        """
+        result = _split_sql_statements(sql)
+        assert len(result) == 2
+
+    def test_single_line_comments(self):
+        """Test that semicolons in single-line comments are not split."""
+        from pgdbm.migrations import _split_sql_statements
+
+        sql = """
+SELECT 1; -- this is a comment; with semicolon
+SELECT 2;
+        """
+        result = _split_sql_statements(sql)
+        assert len(result) == 2
+
+    def test_block_comments(self):
+        """Test that semicolons in block comments are not split."""
+        from pgdbm.migrations import _split_sql_statements
+
+        sql = """
+SELECT 1; /* this is a
+multiline comment; with semicolon
+and more */
+SELECT 2;
+        """
+        result = _split_sql_statements(sql)
+        assert len(result) == 2
+
+    def test_no_trailing_semicolon(self):
+        """Test handling of statements without trailing semicolon."""
+        from pgdbm.migrations import _split_sql_statements
+
+        sql = "SELECT 1; SELECT 2"
+        result = _split_sql_statements(sql)
+        assert len(result) == 2
+        assert result[0] == "SELECT 1;"
+        assert result[1] == "SELECT 2"
+
+    def test_empty_statements(self):
+        """Test that empty statements are filtered out."""
+        from pgdbm.migrations import _split_sql_statements
+
+        sql = "SELECT 1;  ;  ; SELECT 2;"
+        result = _split_sql_statements(sql)
+        assert len(result) == 2
+
+    def test_real_migration_content(self):
+        """Test with realistic migration content similar to CREATE INDEX CONCURRENTLY."""
+        from pgdbm.migrations import _split_sql_statements
+
+        sql = """
+-- pgdbm:no-transaction
+-- Description: Add indexes for search
+
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_title_trgm
+    ON beads.issues USING gin (title gin_trgm_ops);
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_bead_id_trgm
+    ON beads.issues USING gin (bead_id gin_trgm_ops);
+        """
+        result = _split_sql_statements(sql)
+        assert len(result) == 3
+        assert "CREATE EXTENSION" in result[0]
+        assert "idx_title_trgm" in result[1]
+        assert "idx_bead_id_trgm" in result[2]

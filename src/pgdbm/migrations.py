@@ -62,6 +62,107 @@ class Migration(BaseModel):
         return self.filename.split(".")[0]
 
 
+def _split_sql_statements(sql: str) -> list[str]:
+    """Split SQL into individual statements for autocommit execution.
+
+    Handles:
+    - Single-quoted strings ('...') with escaped quotes ('')
+    - Dollar-quoted strings ($$...$$ or $tag$...$tag$)
+    - SQL comments (-- and /* */)
+
+    Returns non-empty statements only.
+    """
+    statements = []
+    current = []
+    i = 0
+    length = len(sql)
+
+    while i < length:
+        char = sql[i]
+
+        # Single-line comment: skip to end of line
+        if char == "-" and i + 1 < length and sql[i + 1] == "-":
+            start = i
+            while i < length and sql[i] != "\n":
+                i += 1
+            current.append(sql[start:i])
+            continue
+
+        # Block comment: skip to */
+        if char == "/" and i + 1 < length and sql[i + 1] == "*":
+            start = i
+            i += 2
+            while i + 1 < length and not (sql[i] == "*" and sql[i + 1] == "/"):
+                i += 1
+            i += 2  # Skip */
+            current.append(sql[start:i])
+            continue
+
+        # Single-quoted string: handle escaped quotes ('')
+        if char == "'":
+            start = i
+            i += 1
+            while i < length:
+                if sql[i] == "'":
+                    if i + 1 < length and sql[i + 1] == "'":
+                        i += 2  # Skip escaped quote
+                    else:
+                        i += 1  # End of string
+                        break
+                else:
+                    i += 1
+            current.append(sql[start:i])
+            continue
+
+        # Dollar-quoted string: $$...$$ or $tag$...$tag$
+        if char == "$":
+            # Find the tag (empty for $$ or alphanumeric for $tag$)
+            tag_start = i
+            i += 1
+            while i < length and (sql[i].isalnum() or sql[i] == "_"):
+                i += 1
+            if i < length and sql[i] == "$":
+                i += 1
+                tag = sql[tag_start:i]
+                # Find matching closing tag
+                start = tag_start
+                end_pos = sql.find(tag, i)
+                if end_pos != -1:
+                    i = end_pos + len(tag)
+                    current.append(sql[start:i])
+                    continue
+                else:
+                    # Unclosed dollar quote - take rest of string
+                    current.append(sql[start:])
+                    break
+            else:
+                # Not a dollar quote, just a $ character
+                i = tag_start + 1
+                current.append("$")
+                continue
+
+        # Statement separator
+        if char == ";":
+            current.append(char)
+            stmt = "".join(current).strip()
+            if stmt and stmt != ";":
+                statements.append(stmt)
+            current = []
+            i += 1
+            continue
+
+        # Regular character
+        current.append(char)
+        i += 1
+
+    # Handle final statement without trailing semicolon
+    stmt = "".join(current).strip()
+    if stmt:
+        statements.append(stmt)
+
+    return statements
+
+
 class AsyncMigrationManager:
     """Manages database migrations asynchronously with detailed debugging support."""
 
@@ -245,6 +346,18 @@ class AsyncMigrationManager:
         normalized_content = content.replace("\r\n", "\n").strip()
         return hashlib.sha256(normalized_content.encode("utf-8")).hexdigest()
 
+    def _requires_no_transaction(self, content: str) -> bool:
+        """Check if migration declares no-transaction mode.
+
+        Migrations containing DDL that cannot run inside a transaction block
+        (like CREATE INDEX CONCURRENTLY) should include the magic comment:
+
+            -- pgdbm:no-transaction
+
+        This causes the migration to execute in autocommit mode.
+        """
+        return "-- pgdbm:no-transaction" in content
+
     async def _validate_migration_syntax(self, content: str, filename: str) -> None:
         """Validate migration SQL syntax without executing."""
         # Basic syntax validation - more sophisticated validation would
@@ -301,7 +414,20 @@ class AsyncMigrationManager:
         return execution_time_ms
 
     async def _apply_migration_on(self, conn: Any, migration: Migration) -> float:
-        """Apply a single migration using a specific connection within a transaction."""
+        """Apply a single migration using a specific connection.
+
+        If the migration contains '-- pgdbm:no-transaction', it will be executed
+        in autocommit mode (no transaction wrapper). This is required for DDL
+        that cannot run inside a transaction block, such as:
+        - CREATE INDEX CONCURRENTLY
+        - DROP INDEX CONCURRENTLY
+        - REINDEX CONCURRENTLY
+        """
+        # Check if migration requires no-transaction mode
+        if self._requires_no_transaction(migration.content):
+            return await self._apply_migration_no_transaction(conn, migration)
+
+        # Standard transactional path
         import time
 
         start_time = time.time()
@@ -337,6 +463,68 @@ class AsyncMigrationManager:
                 self.module_name,
                 execution_time_ms,
             )
+
+        logger.info(f"Applied migration '{migration.filename}' in {execution_time_ms}ms")
+        return execution_time_ms
+
+    async def _apply_migration_no_transaction(self, conn: Any, migration: Migration) -> float:
+        """Apply a migration without transaction wrapper (autocommit mode).
+
+        Used for DDL that cannot run inside a transaction block:
+        - CREATE INDEX CONCURRENTLY
+        - DROP INDEX CONCURRENTLY
+        - REINDEX CONCURRENTLY
+
+        The migration file must include the magic comment:
+            -- pgdbm:no-transaction
+        """
+        import time
+
+        start_time = time.time()
+
+        logger.info(
+            f"Applying migration '{migration.filename}' without transaction "
+            "(pgdbm:no-transaction)"
+        )
+
+        if self._debug:
+            logger.debug(f"Content preview: {migration.content[:200]}...")
+
+        await self._validate_migration_syntax(migration.content, migration.filename)
+
+        table_name = self.migrations_table
+        if self.db.schema:
+            table_name = f"{self.db.schema}.{self.migrations_table}"
+
+        # Process template placeholders
+        processed_content = self.db.prepare_query(migration.content)
+
+        # Split into individual statements and execute each separately.
+        # asyncpg wraps multiple statements in an implicit transaction,
+        # which breaks CREATE INDEX CONCURRENTLY. Single statements
+        # execute in true autocommit mode.
+        statements = _split_sql_statements(processed_content)
+        for stmt in statements:
+            if self._debug:
+                logger.debug(f"Executing statement: {stmt[:100]}...")
+            await conn.execute(stmt)
+
+        execution_time_ms = int((time.time() - start_time) * 1000)
+        if execution_time_ms == 0:
+            execution_time_ms = 1
+
+        # Record in migrations table (also in autocommit mode)
+        await conn.execute(
+            f"""
+            INSERT INTO {table_name}
+            (filename, checksum, module_name, execution_time_ms)
+            VALUES ($1, $2, $3, $4)
+            """,
+            migration.filename,
+            migration.checksum,
+            self.module_name,
+            execution_time_ms,
+        )
 
         logger.info(f"Applied migration '{migration.filename}' in {execution_time_ms}ms")
         return execution_time_ms
