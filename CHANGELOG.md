@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-11
+
+### Added
+- **No-transaction migration mode** for DDL that cannot run inside a transaction block
+  - Use magic comment `-- pgdbm:no-transaction` at the start of a line in migration files
+  - Supports `CREATE INDEX CONCURRENTLY`, `DROP INDEX CONCURRENTLY`, `REINDEX CONCURRENTLY`
+  - Migrations are split into individual statements and executed in autocommit mode
+  - SQL-aware statement splitter handles quoted strings, dollar quotes, and comments
+  - Warning log emitted to alert operators about partial commit risk
+- `_split_sql_statements()` helper for SQL-aware statement splitting
+
+### Fixed
+- Magic comment detection uses anchored regex to prevent false positives
+  - Now requires `-- pgdbm:no-transaction` at start of line followed by whitespace or end-of-line
+  - Won't match variations like `-- pgdbm:no-transactional` or embedded mentions
+
+### Documentation
+- Documented idempotent statement requirement for no-transaction migrations
+- Added warning about partial commit behavior when using no-transaction mode
+
 ## [0.2.1] - 2026-01-06
 
 ### Added
