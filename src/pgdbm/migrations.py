@@ -357,7 +357,7 @@ class AsyncMigrationManager:
 
         This causes the migration to execute in autocommit mode.
         """
-        return bool(re.search(r"^-- pgdbm:no-transaction", content, re.MULTILINE))
+        return bool(re.search(r"^-- pgdbm:no-transaction(?=\s|$)", content, re.MULTILINE))
 
     async def _validate_migration_syntax(self, content: str, filename: str) -> None:
         """Validate migration SQL syntax without executing."""

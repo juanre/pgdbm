@@ -505,6 +505,15 @@ class TestMigrationManagement:
                 "INSERT INTO docs VALUES ('Use -- pgdbm:no-transaction for concurrent indexes');"
             )
 
+            # Should NOT detect invalid suffix variations (word boundary check)
+            assert not manager._requires_no_transaction(
+                "-- pgdbm:no-transactional\nCREATE INDEX..."
+            )
+            assert not manager._requires_no_transaction(
+                "-- pgdbm:no-transaction-mode\nCREATE INDEX..."
+            )
+            assert not manager._requires_no_transaction("-- pgdbm:no-transactions\nCREATE INDEX...")
+
     @pytest.mark.asyncio
     async def test_no_transaction_migration(self, test_db):
         """Test migration with pgdbm:no-transaction executes without transaction."""
