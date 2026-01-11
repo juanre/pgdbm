@@ -350,13 +350,14 @@ class AsyncMigrationManager:
         """Check if migration declares no-transaction mode.
 
         Migrations containing DDL that cannot run inside a transaction block
-        (like CREATE INDEX CONCURRENTLY) should include the magic comment:
+        (like CREATE INDEX CONCURRENTLY) should include the magic comment
+        at the start of a line:
 
             -- pgdbm:no-transaction
 
         This causes the migration to execute in autocommit mode.
         """
-        return "-- pgdbm:no-transaction" in content
+        return bool(re.search(r"^-- pgdbm:no-transaction", content, re.MULTILINE))
 
     async def _validate_migration_syntax(self, content: str, filename: str) -> None:
         """Validate migration SQL syntax without executing."""
@@ -370,9 +371,20 @@ class AsyncMigrationManager:
         """
         Apply a single migration and return execution time in milliseconds.
 
+        If the migration contains '-- pgdbm:no-transaction' at the start of a line,
+        it will be executed in autocommit mode (no transaction wrapper). This is
+        required for DDL that cannot run inside a transaction block, such as
+        CREATE INDEX CONCURRENTLY.
+
         Returns:
             Execution time in milliseconds
         """
+        # Check if migration requires no-transaction mode
+        if self._requires_no_transaction(migration.content):
+            async with self.db.acquire() as conn:
+                return await self._apply_migration_no_transaction(conn, migration)
+
+        # Standard transactional path
         import time
 
         start_time = time.time()
@@ -475,16 +487,21 @@ class AsyncMigrationManager:
         - DROP INDEX CONCURRENTLY
         - REINDEX CONCURRENTLY
 
-        The migration file must include the magic comment:
+        The migration file must include the magic comment at the start of a line:
             -- pgdbm:no-transaction
+
+        IMPORTANT: Statements in no-transaction migrations should be idempotent
+        (e.g., use IF NOT EXISTS). If a statement fails partway through, earlier
+        statements will already be committed and cannot be rolled back. On retry,
+        idempotent statements become no-ops, allowing the migration to continue.
         """
         import time
 
         start_time = time.time()
 
-        logger.info(
-            f"Applying migration '{migration.filename}' without transaction "
-            "(pgdbm:no-transaction)"
+        logger.warning(
+            f"Applying migration '{migration.filename}' in no-transaction mode. "
+            "Partial failures cannot be rolled back - ensure statements are idempotent."
         )
 
         if self._debug:

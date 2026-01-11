@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from pgdbm import AsyncMigrationManager, MigrationError
+from pgdbm import AsyncMigrationManager, Migration, MigrationError
 
 
 class TestMigrationManagement:
@@ -477,10 +477,11 @@ class TestMigrationManagement:
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AsyncMigrationManager(test_db, migrations_path=tmpdir, module_name="test")
 
-            # Should detect magic comment
+            # Should detect magic comment at start of file
             assert manager._requires_no_transaction(
                 "-- pgdbm:no-transaction\nCREATE INDEX CONCURRENTLY ..."
             )
+            # Should detect magic comment at start of any line
             assert manager._requires_no_transaction(
                 "-- Description\n-- pgdbm:no-transaction\nCREATE INDEX ..."
             )
@@ -489,6 +490,19 @@ class TestMigrationManagement:
             assert not manager._requires_no_transaction("CREATE TABLE test (id INT);")
             assert not manager._requires_no_transaction(
                 "-- Some comment\nCREATE INDEX idx ON table(col);"
+            )
+
+            # Should NOT detect when magic comment is mentioned in text (not at line start)
+            assert not manager._requires_no_transaction(
+                "CREATE TABLE t (id INT);\n"
+                "-- Note: we considered pgdbm:no-transaction but decided against it"
+            )
+            assert not manager._requires_no_transaction(
+                "-- Comment about pgdbm:no-transaction feature\nCREATE TABLE t (id INT);"
+            )
+            # Should NOT detect if embedded in a string or other context
+            assert not manager._requires_no_transaction(
+                "INSERT INTO docs VALUES ('Use -- pgdbm:no-transaction for concurrent indexes');"
             )
 
     @pytest.mark.asyncio
@@ -576,6 +590,57 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_nonexistent
             history = await migrations.get_migration_history()
             applied_files = [h["filename"] for h in history]
             assert "001_failing.sql" not in applied_files
+
+    @pytest.mark.asyncio
+    async def test_apply_migration_public_api_no_transaction(self, test_db):
+        """Test apply_migration() public API supports no-transaction mode.
+
+        The public apply_migration() method should handle no-transaction migrations
+        the same way apply_pending_migrations() does.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            migrations = AsyncMigrationManager(
+                test_db, migrations_path=tmpdir, module_name="apply_single_no_tx"
+            )
+
+            # Ensure migrations table exists
+            await migrations.ensure_migrations_table()
+
+            # First create the table via regular migration
+            table_migration = Migration(
+                filename="001_create_table.sql",
+                checksum="abc123",
+                content="""
+                CREATE TABLE apply_single_no_tx (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255)
+                );
+                """,
+            )
+            await migrations.apply_migration(table_migration)
+            assert await test_db.table_exists("apply_single_no_tx")
+
+            # Now apply a no-transaction migration via the public API
+            index_migration = Migration(
+                filename="002_create_index.sql",
+                checksum="def456",
+                content="""-- pgdbm:no-transaction
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_apply_single_name
+    ON apply_single_no_tx (name);
+                """,
+            )
+            execution_time = await migrations.apply_migration(index_migration)
+            assert execution_time > 0
+
+            # Verify index was created
+            indexes = await test_db.fetch_all(
+                """
+                SELECT indexname FROM pg_indexes
+                WHERE tablename = 'apply_single_no_tx'
+                """
+            )
+            index_names = [row["indexname"] for row in indexes]
+            assert "idx_apply_single_name" in index_names
 
 
 class TestSqlStatementSplitting:
