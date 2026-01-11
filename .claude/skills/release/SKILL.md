@@ -87,7 +87,10 @@ git push origin vX.Y.Z
 
 ### 7. Publish to PyPI
 
+**Important**: Clean the dist/ directory first to avoid uploading old versions.
+
 ```bash
+rm -rf dist/
 uv build
 uv publish
 ```
@@ -95,6 +98,7 @@ uv publish
 Or if using twine:
 
 ```bash
+rm -rf dist/
 uv build
 twine upload dist/*
 ```
