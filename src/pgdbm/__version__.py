@@ -6,7 +6,7 @@
 
 """Version information for pgdbm."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __author__ = "Juan Reyero"
 __author_email__ = "juan@juanreyero.com"
 __license__ = "MIT"

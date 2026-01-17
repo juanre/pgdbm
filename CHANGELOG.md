@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-01-17
+
+### Added
+- **Explicit schema syntax for cross-schema queries** via `{{tables.schema.tablename}}`
+  - Enables queries across different schemas while maintaining backward compatibility
+  - Works with or without a schema configured on the database manager
+  - Schema and table names are validated to prevent SQL injection
+- Table name validation in template placeholders for enhanced security
+- `EXPLICIT_TABLE_PATTERN` and `IMPLICIT_TABLE_PATTERN` compiled regex constants
+
+### Changed
+- Refactored `prepare_query()` to use compiled regex patterns for better performance
+
 ## [0.3.0] - 2026-01-11
 
 ### Added
