@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 SCHEMA_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
+TABLE_NAME_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
+# Template patterns for query preparation
+EXPLICIT_TABLE_PATTERN = re.compile(r"{{tables\.([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)}}")
+IMPLICIT_TABLE_PATTERN = re.compile(r"{{tables\.([a-zA-Z0-9_]+)}}")
 
 
 def _validate_schema_name(schema: str) -> None:
@@ -35,6 +39,16 @@ def _validate_schema_name(schema: str) -> None:
             f"Invalid schema name '{schema}'. Schema names must start with a "
             "letter or underscore and contain only letters, numbers, and underscores.",
             schema=schema,
+        )
+
+
+def _validate_table_name(table: str) -> None:
+    """Validate table name for PostgreSQL identifier safety."""
+    if not TABLE_NAME_PATTERN.match(table):
+        raise SchemaError(
+            f"Invalid table name '{table}'. Table names must start with a "
+            "letter or underscore and contain only letters, numbers, and underscores.",
+            schema=None,
         )
 
 
@@ -602,6 +616,7 @@ class AsyncDatabaseManager:
         Supports:
         - {{schema}} - replaced with schema name
         - {{tables.tablename}} - replaced with schema.tablename
+        - {{tables.schema.tablename}} - replaced with explicit schema.tablename
 
         Security: Schema and table names are validated to prevent SQL injection.
 
@@ -617,6 +632,25 @@ class AsyncDatabaseManager:
                 query = db.prepare_query("SELECT * FROM {{tables.users}}")
                 await tx.connection.execute(query)
         """
+
+        def _replace_explicit_table(match: re.Match[str]) -> str:
+            schema_name = match.group(1)
+            table_name = match.group(2)
+            _validate_schema_name(schema_name)
+            _validate_table_name(table_name)
+            return f'"{schema_name}".{table_name}'
+
+        def _replace_implicit_table(match: re.Match[str]) -> str:
+            table_name = match.group(1)
+            _validate_table_name(table_name)
+            # For safety, quote the schema name, but keep table name unquoted for backward compatibility.
+            return f'"{self.schema}".{table_name}'
+
+        def _replace_table_only(match: re.Match[str]) -> str:
+            table_name = match.group(1)
+            _validate_table_name(table_name)
+            return table_name
+
         # Validate schema name if provided
         if self.schema:
             _validate_schema_name(self.schema)
@@ -625,14 +659,18 @@ class AsyncDatabaseManager:
             # Remove schema placeholders when no schema specified
             query = query.replace("{{schema}}.", "")
             query = query.replace("{{schema}}", "public")
+            # Replace explicit schema table placeholders with schema-qualified names
+            query = EXPLICIT_TABLE_PATTERN.sub(_replace_explicit_table, query)
             # Replace table placeholders with just the table name
-            query = re.sub(r"{{tables\.([a-zA-Z0-9_]+)}}", r"\1", query)
+            query = IMPLICIT_TABLE_PATTERN.sub(_replace_table_only, query)
         else:
             # For safety, quote the schema name
             quoted_schema = f'"{self.schema}"'
             query = query.replace("{{schema}}", quoted_schema)
+            # Replace explicit schema table placeholders with that schema-qualified name
+            query = EXPLICIT_TABLE_PATTERN.sub(_replace_explicit_table, query)
             # Replace table placeholders with schema-qualified names
-            query = re.sub(r"{{tables\.([a-zA-Z0-9_]+)}}", f"{quoted_schema}.\\1", query)
+            query = IMPLICIT_TABLE_PATTERN.sub(_replace_implicit_table, query)
 
         return query
 

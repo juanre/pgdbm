@@ -109,11 +109,21 @@ async def test_query_preparation(test_db_with_schema):
     prepared = test_db_with_schema._prepare_query(query)
     assert prepared == 'SELECT * FROM "test_schema".users'
 
+    # Test explicit schema + table placeholder (cross-schema queries)
+    query = "SELECT * FROM {{tables.server.projects}}"
+    prepared = test_db_with_schema._prepare_query(query)
+    assert prepared == 'SELECT * FROM "server".projects'
+
     # Test without schema
     db_no_schema = AsyncDatabaseManager(DatabaseConfig(schema=None))
     query = "SELECT * FROM {{tables.users}}"
     prepared = db_no_schema._prepare_query(query)
     assert prepared == "SELECT * FROM users"
+
+    # Test explicit schema works even when manager has no schema
+    query = "SELECT * FROM {{tables.server.projects}}"
+    prepared = db_no_schema._prepare_query(query)
+    assert prepared == 'SELECT * FROM "server".projects'
 
 
 @pytest.mark.integration

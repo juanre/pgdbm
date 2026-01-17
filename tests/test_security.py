@@ -64,6 +64,100 @@ class TestSQLInjectionProtection:
             assert f'"{valid_schema}".users' in query
 
     @pytest.mark.unit
+    def test_explicit_schema_validation_prevents_injection(self):
+        """Test that invalid schema names in explicit table placeholders are rejected.
+
+        Note: The template regex only captures [a-zA-Z0-9_]+ characters, so special
+        characters won't match and are left as literal text. This tests identifiers
+        that match the regex but fail validation (e.g., starting with a digit).
+        """
+        config = DatabaseConfig(schema=None)
+        db = AsyncDatabaseManager(config=config)
+
+        # These match [a-zA-Z0-9_]+ but fail validation (start with digit or too long)
+        invalid_schemas = [
+            "123_starts_with_digit",
+            "9schema",
+            "a" * 64,  # Exceeds 63 char limit
+        ]
+
+        for invalid_schema in invalid_schemas:
+            with pytest.raises(SchemaError) as exc_info:
+                db.prepare_query(f"SELECT * FROM {{{{tables.{invalid_schema}.users}}}}")
+
+            assert "Invalid schema name" in str(exc_info.value)
+
+    @pytest.mark.unit
+    def test_table_name_validation_prevents_injection(self):
+        """Test that invalid table names in table placeholders are rejected.
+
+        Note: The template regex only captures [a-zA-Z0-9_]+ characters, so special
+        characters won't match and are left as literal text. This tests identifiers
+        that match the regex but fail validation (e.g., starting with a digit).
+        """
+        config = DatabaseConfig(schema="test_schema")
+        db = AsyncDatabaseManager(config=config)
+
+        # These match [a-zA-Z0-9_]+ but fail validation (start with digit or too long)
+        invalid_tables = [
+            "123_starts_with_digit",
+            "9users",
+            "a" * 64,  # Exceeds 63 char limit
+        ]
+
+        for invalid_table in invalid_tables:
+            with pytest.raises(SchemaError) as exc_info:
+                db.prepare_query(f"SELECT * FROM {{{{tables.{invalid_table}}}}}")
+
+            assert "Invalid table name" in str(exc_info.value)
+
+    @pytest.mark.unit
+    def test_explicit_table_name_validation_prevents_injection(self):
+        """Test that invalid table names in explicit schema placeholders are rejected.
+
+        Note: The template regex only captures [a-zA-Z0-9_]+ characters, so special
+        characters won't match and are left as literal text. This tests identifiers
+        that match the regex but fail validation (e.g., starting with a digit).
+        """
+        config = DatabaseConfig(schema=None)
+        db = AsyncDatabaseManager(config=config)
+
+        # These match [a-zA-Z0-9_]+ but fail validation (start with digit or too long)
+        invalid_tables = [
+            "123_starts_with_digit",
+            "9users",
+            "a" * 64,  # Exceeds 63 char limit
+        ]
+
+        for invalid_table in invalid_tables:
+            with pytest.raises(SchemaError) as exc_info:
+                db.prepare_query(f"SELECT * FROM {{{{tables.valid_schema.{invalid_table}}}}}")
+
+            assert "Invalid table name" in str(exc_info.value)
+
+    @pytest.mark.unit
+    def test_special_chars_in_template_left_unchanged(self):
+        """Test that placeholders with special chars are left as literal text.
+
+        This is secure because invalid SQL syntax will cause a database error,
+        not an injection. The regex only captures [a-zA-Z0-9_]+ characters.
+        """
+        config = DatabaseConfig(schema=None)
+        db = AsyncDatabaseManager(config=config)
+
+        # These contain chars outside [a-zA-Z0-9_] so won't match the regex
+        malformed_templates = [
+            "SELECT * FROM {{tables.bad; DROP.users}}",
+            "SELECT * FROM {{tables.bad-schema.users}}",
+            'SELECT * FROM {{tables.bad".users}}',
+        ]
+
+        for template in malformed_templates:
+            result = db.prepare_query(template)
+            # Should be unchanged - the placeholder wasn't recognized
+            assert result == template
+
+    @pytest.mark.unit
     def test_database_name_validation_in_testing(self):
         """Test that invalid database names are rejected in testing utilities."""
         test_db = AsyncTestDatabase()
